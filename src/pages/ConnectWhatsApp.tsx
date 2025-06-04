@@ -21,6 +21,7 @@ const ConnectWhatsApp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionName, setConnectionName] = useState('');
+  const [connectMode, setConnectMode] = useState<'qr' | 'pairing' | null>(null);
 
   const pollQrCode = async (deviceId: string) => {
     let attempts = 0;
@@ -53,10 +54,12 @@ const ConnectWhatsApp: React.FC = () => {
       toast.error('Por favor, insira um número de telefone');
       return;
     }
-
+    if (!connectMode) {
+      toast.error('Escolha o modo de conexão');
+      return;
+    }
     setIsLoading(true);
     setError(null);
-
     try {
       const response = await fetch(API_ENDPOINTS.whatsapp.connect, {
         method: 'POST',
@@ -67,24 +70,16 @@ const ConnectWhatsApp: React.FC = () => {
           userId: user?.id,
           deviceId: phoneNumber,
           connectionName: connectionName || `WhatsApp ${phoneNumber}`,
+          mode: connectMode,
         }),
       });
-
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.error || 'Erro ao conectar');
       }
-
-      if (data.status === 'connected') {
-        setConnectionStatus('Conectado');
-        setOpenQRDialog(false);
-        toast.success('WhatsApp conectado com sucesso!');
-      } else {
-        setConnectionStatus('Conectando...');
-        pollQrCode(phoneNumber);
-        checkConnectionStatus();
-      }
+      setConnectionStatus('Conectando...');
+      pollQrCode(phoneNumber);
+      checkConnectionStatus();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao conectar');
       toast.error('Erro ao conectar WhatsApp');
@@ -146,6 +141,22 @@ const ConnectWhatsApp: React.FC = () => {
           placeholder="Ex: WhatsApp Comercial"
           sx={{ mb: 2, background: '#FFFDE7', borderRadius: 2 }}
         />
+        <Box sx={{ display: 'flex', gap: 2, width: '100%', mb: 2 }}>
+          <Button
+            variant={connectMode === 'qr' ? 'contained' : 'outlined'}
+            onClick={() => setConnectMode('qr')}
+            sx={{ flex: 1, fontWeight: 700, background: connectMode === 'qr' ? YELLOW : undefined, color: connectMode === 'qr' ? '#222' : YELLOW_DARK, borderColor: YELLOW_DARK }}
+          >
+            QR Code
+          </Button>
+          <Button
+            variant={connectMode === 'pairing' ? 'contained' : 'outlined'}
+            onClick={() => setConnectMode('pairing')}
+            sx={{ flex: 1, fontWeight: 700, background: connectMode === 'pairing' ? YELLOW : undefined, color: connectMode === 'pairing' ? '#222' : YELLOW_DARK, borderColor: YELLOW_DARK }}
+          >
+            Código de Pareamento
+          </Button>
+        </Box>
         <Button
           variant="contained"
           onClick={handleConnect}

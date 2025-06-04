@@ -190,11 +190,14 @@ const createNewConnection = async (deviceId, authFolder) => {
 
 // Rota para conectar ao WhatsApp
 app.post('/api/whatsapp/connect', async (req, res) => {
-  const { deviceId, connectionName } = req.body;
-  console.log('[WA-CONNECT] Iniciando conexão para deviceId:', deviceId);
+  const { deviceId, connectionName, mode } = req.body; // mode: 'qr' ou 'pairing'
+  console.log('[WA-CONNECT] Iniciando conexão para deviceId:', deviceId, 'modo:', mode);
 
   if (!deviceId) {
     return res.status(400).json({ error: 'Parâmetro deviceId é obrigatório.' });
+  }
+  if (!mode || (mode !== 'qr' && mode !== 'pairing')) {
+    return res.status(400).json({ error: 'Parâmetro mode é obrigatório (qr ou pairing).' });
   }
 
   try {
@@ -206,44 +209,87 @@ app.post('/api/whatsapp/connect', async (req, res) => {
       connections.delete(deviceId);
       console.log('[WA-CONNECT] Sessão antiga removida para deviceId:', deviceId);
     }
+    fs.mkdirSync(authFolder, { recursive: true });
+    const { state, saveCreds } = await useMultiFileAuthState(authFolder);
+    const client = makeWASocket({
+      auth: state,
+      printQRInTerminal: mode === 'qr',
+      browser: ['Chrome (Linux)', '', ''],
+      connectTimeoutMs: 60000,
+      defaultQueryTimeoutMs: 60000,
+      retryRequestDelayMs: 250,
+      markOnlineOnConnect: false,
+      deviceId: deviceId
+    });
+    const prev = connections.get(deviceId);
+    const nameToSave = connectionName || (prev && prev.connection_name);
+    connections.set(deviceId, { client, status: 'connecting', deviceId, connection_name: nameToSave });
+    console.log('[WA-START] Cliente criado e adicionado ao mapa de conexões');
 
-    console.log('[WA-CONNECT] Iniciando nova conexão para:', deviceId);
-    const client = await startConnection(deviceId, connectionName);
+    if (!state.creds.registered) {
+      if (mode === 'pairing') {
+        try {
+          const pairingCode = await client.requestPairingCode(deviceId);
+          qrCodes.set(deviceId, { pairingCode });
+          console.log(`[WA-PAIRING] Código de pareamento gerado para ${deviceId}: ${pairingCode}`);
+        } catch (error) {
+          console.error('[WA-PAIRING] Erro ao gerar código de pareamento:', error);
+        }
+      }
+      // Se for modo QR, não faz nada, só espera o evento 'qr'
+    }
 
-    // Gerar QR code e enviar na resposta
-    console.log('[WA-CONNECT] Aguardando geração do QR code...');
-    const qrPromise = new Promise((resolve) => {
-      client.ev.on('qr', async (qr) => {
-        console.log('[WA-CONNECT] QR code recebido');
-        resolve({ qr, status: 'pending' });
-      });
-
-      // Adicionar timeout para o evento QR
-      setTimeout(() => {
-        console.log('[WA-CONNECT] Timeout aguardando QR code');
-        resolve(null);
-      }, 30000);
+    client.ev.on('qr', (qr) => {
+      if (mode === 'qr') {
+        qrcode.toDataURL(qr, (err, url) => {
+          if (!err) {
+            qrCodes.set(deviceId, { qr: url });
+            console.log(`[WA-QR] QR Code base64 salvo para deviceId=${deviceId}`);
+          } else {
+            console.error('[WA-QR] Erro ao gerar QR Code base64:', err);
+          }
+        });
+      }
     });
 
-    const result = await qrPromise;
-    console.log('[WA-CONNECT] Resultado da geração do QR code:', result ? 'Sucesso' : 'Falha');
+    client.ev.on('connection.update', async (update) => {
+      console.log(`[WA-UPDATE] ${deviceId}:`, update);
 
-    if (result && result.qr) {
-      console.log('[WA-CONNECT] Enviando QR code para o cliente');
-      return res.status(200).json({ 
-        message: 'QR Code gerado', 
-        deviceId,
-        qr: result.qr,
-        status: result.status
-      });
-    } else {
-      console.log('[WA-CONNECT] Nenhum QR code gerado, enviando resposta padrão');
-      return res.status(200).json({ 
-        message: 'Conexão iniciada, aguardando QR Code', 
-        deviceId,
-        status: 'connecting'
-      });
-    }
+      // Recupera o nome salvo, se existir
+      const prev = connections.get(deviceId);
+      const connection_name = prev && prev.connection_name ? prev.connection_name : undefined;
+
+      if (update.connection === 'open') {
+        console.log(`[WA-CONNECTED] deviceId=${deviceId}`);
+        connections.set(deviceId, { client, status: 'connected', deviceId, connection_name });
+
+      } else if (update.connection === 'close') {
+        const statusCode = update.lastDisconnect?.error?.output?.statusCode;
+        const reason = update.lastDisconnect?.error?.message || 'Desconhecido';
+
+        console.warn(`[WA-DISCONNECTED] deviceId=${deviceId} - Motivo: ${reason}`);
+
+        if (statusCode !== DisconnectReason.loggedOut) {
+          console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId}`);
+          connections.set(deviceId, { client, status: 'reconnecting', deviceId, connection_name });
+          setTimeout(() => {
+            startConnection(deviceId, connection_name);
+          }, 5000);
+        } else {
+          console.log(`[WA-LOGOUT] Sessão do deviceId=${deviceId} desconectada permanentemente.`);
+          connections.set(deviceId, { client, status: 'loggedOut', deviceId, connection_name });
+        }
+      }
+
+      if (update.qr) {
+        qrCodes.set(deviceId, { type: 'qr', code: update.qr });
+        console.log(`[WA-QR] QR Code string salvo via connection.update para deviceId=${deviceId}`);
+      }
+    });
+
+    client.ev.on('creds.update', saveCreds);
+    console.log('[WA-START] Eventos de conexão e credenciais configurados');
+    return res.status(200).json({ message: 'Conexão iniciada', deviceId, status: 'connecting' });
   } catch (err) {
     console.error(`[WA-CONNECT-ERROR] Erro ao conectar ${deviceId}:`, err);
     return res.status(500).json({ error: 'Erro ao conectar WhatsApp', details: err.message });
@@ -365,17 +411,17 @@ app.post('/api/whatsapp/send', async (req, res) => {
   }
 });
 
-// Endpoint para buscar o QR code e Pairing Code atual
+// Endpoint para buscar o QR code ou Pairing Code atual
 app.get('/api/whatsapp/qr/:deviceId', (req, res) => {
   const { deviceId } = req.params;
   const qrData = qrCodes.get(deviceId) || {};
-  if (qrData.qr || qrData.pairingCode) {
-    return res.json({
-      qr: qrData.qr || null,
-      pairingCode: qrData.pairingCode || null
-    });
+  if (qrData.qr) {
+    return res.json({ qr: qrData.qr });
   }
-  return res.status(404).json({ error: 'QR code não encontrado' });
+  if (qrData.pairingCode) {
+    return res.json({ pairingCode: qrData.pairingCode });
+  }
+  return res.status(404).json({ error: 'QR code ou Pairing Code não encontrado' });
 });
 
 // Rota para deletar sessão
