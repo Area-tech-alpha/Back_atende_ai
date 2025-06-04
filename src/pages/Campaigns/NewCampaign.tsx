@@ -52,6 +52,18 @@ const NewCampaign = () => {
   const [devices, setDevices] = useState<{ deviceId: string, connection_name?: string }[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('default');
 
+  // Função para salvar rascunho corretamente
+  const formRef = useRef<HTMLFormElement>(null);
+  const handleSaveDraft = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDraft(true);
+    if (formRef.current) {
+      handleSubmit({
+        ...e,
+        preventDefault: () => {},
+      } as any, true);
+    }
+  };
 
   // Buscar listas de contatos salvas
   useEffect(() => {
@@ -180,19 +192,22 @@ const NewCampaign = () => {
         imageUrl = `${supabase.storage.from('imagemevolution').getPublicUrl(imageData.path).data.publicUrl}`;
       }
 
-      // Save contacts
-      const { data: contactsData, error: contactsError } = await supabase
-        .from('contato_evolution')
-        .insert([
-          {
-            contatos: JSON.stringify(contacts),
-            relacao_login: user?.id
-          }
-        ])
-        .select()
-        .single();
-
-      if (contactsError) throw contactsError;
+      // Salvar contatos apenas se não houver lista selecionada
+      let contatosId = selectedContactListId;
+      if (!selectedContactListId) {
+        const { data: contactsData, error: contactsError } = await supabase
+          .from('contato_evolution')
+          .insert([
+            {
+              contatos: JSON.stringify(contacts),
+              relacao_login: user?.id
+            }
+          ])
+          .select()
+          .single();
+        if (contactsError) throw contactsError;
+        contatosId = contactsData.id;
+      }
 
       // Adicionar 3 horas ao horário local antes de converter para UTC ISO string
       let scheduledDateTime = null;
@@ -211,7 +226,7 @@ const NewCampaign = () => {
             texto: message,
             imagem: imageUrl,
             data_de_envio: scheduledDateTime,
-            contatos: contactsData.id,
+            contatos: contatosId,
             delay: messageDelay,
             status: draft ? 'Draft' : (isImmediate ? null : 'Scheduled'),
             device_id: selectedDevice,
@@ -310,7 +325,7 @@ const NewCampaign = () => {
             </div>
           </div>
 
-          <form onSubmit={(e) => handleSubmit(e, isDraft)} className="space-y-8">
+          <form ref={formRef} onSubmit={(e) => handleSubmit(e, isDraft)} className="space-y-8">
             {/* Configurações Básicas */}
             <div className="card">
               <h2 className="text-xl font-display font-bold text-accent mb-6">
@@ -535,7 +550,7 @@ const NewCampaign = () => {
             <div className="flex justify-end space-x-4">
               <button
                 type="button"
-                onClick={() => setIsDraft(true)}
+                onClick={handleSaveDraft}
                 className="btn-secondary"
               >
                 Salvar Rascunho

@@ -40,6 +40,7 @@ const Contacts = () => {
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportListId, setExportListId] = useState<number | null>(null);
   const [importJson, setImportJson] = useState('');
+  const [csvFileName, setCsvFileName] = useState<string>('');
 
   useEffect(() => {
     if (user) {
@@ -144,6 +145,7 @@ const Contacts = () => {
   const handleCSVUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setCsvFileName(file.name);
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target?.result as string;
@@ -369,11 +371,27 @@ const Contacts = () => {
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="btn-secondary w-full"
+                  className="btn-secondary w-full mb-2 flex flex-col items-center justify-center py-6 gap-2"
                 >
-                  <Upload size={16} className="mr-2" />
-                  Selecionar Arquivo CSV
+                  <Upload size={28} className="mb-1" />
+                  <span className="text-base font-medium">Selecionar Arquivo CSV</span>
                 </button>
+                <a
+                  href="/Modelo.csv"
+                  download
+                  className="btn-primary w-full mb-2 text-center flex items-center justify-center"
+                  style={{ minWidth: 0 }}
+                >
+                  Baixar modelo
+                </a>
+                <div className="text-xs text-accent/60 mb-2 text-center">
+                  Baixe o modelo para facilitar a importação dos contatos.
+                </div>
+                {csvFileName && (
+                  <div className="mt-2 text-xs text-green-700 font-medium">
+                    Arquivo selecionado: {csvFileName}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-accent mb-2">
