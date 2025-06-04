@@ -25,7 +25,11 @@ const formatPhoneNumber = (phone: string): string => {
     cleaned = '55' + cleaned;
   }
 
-  // Não altera mais nada, apenas retorna
+  // Se tiver 13 dígitos (ex: 5561985515084), remove o nono dígito (primeiro após o DDD)
+  if (cleaned.length === 13) {
+    cleaned = cleaned.slice(0, 5) + cleaned.slice(6);
+  }
+
   return cleaned;
 };
 

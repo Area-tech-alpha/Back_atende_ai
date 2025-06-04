@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_ENDPOINTS } from '../config/api';
+import { MoreVertical } from 'lucide-react';
 
 interface WhatsAppConnection {
   id: string;
@@ -17,6 +18,7 @@ const WhatsAppConnections: React.FC = () => {
   const [connections, setConnections] = useState<WhatsAppConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   const fetchConnections = async () => {
     try {
@@ -114,16 +116,32 @@ const WhatsAppConnections: React.FC = () => {
                   <h3 className="font-medium text-accent text-lg">{connection.connection_name || 'Sem nome'}</h3>
                   <p className="text-accent/60 text-sm">{connection.deviceId || connection.id}</p>
                 </div>
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-4 relative">
                   <span className={`${getStatusColor(connection.status)} font-medium`}>
                     {getStatusText(connection.status)}
                   </span>
                   <button
-                    className="ml-2 text-yellow-600 hover:text-yellow-800 text-sm font-medium"
-                    onClick={() => handleDisconnectConnection(connection.deviceId || connection.id)}
+                    className="ml-2 p-1 rounded-full hover:bg-gray-200 transition"
+                    onClick={() => setOpenMenuId(openMenuId === (connection.deviceId || connection.id) ? null : (connection.deviceId || connection.id))}
                   >
-                    Desconectar
+                    <MoreVertical size={22} />
                   </button>
+                  {openMenuId === (connection.deviceId || connection.id) && (
+                    <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded shadow-lg z-10 min-w-[120px]">
+                      <button
+                        className="block w-full text-left px-4 py-2 text-yellow-700 hover:bg-yellow-50"
+                        onClick={() => { setOpenMenuId(null); handleDisconnectConnection(connection.deviceId || connection.id); }}
+                      >
+                        Desconectar
+                      </button>
+                      <button
+                        className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
+                        onClick={() => { setOpenMenuId(null); handleDeleteConnection(connection.deviceId || connection.id); }}
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  )}
                   <button
                     className="ml-2 text-red-600 hover:text-red-800 text-sm font-medium"
                     onClick={() => handleDeleteConnection(connection.deviceId || connection.id)}
