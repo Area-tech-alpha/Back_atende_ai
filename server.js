@@ -185,10 +185,13 @@ app.post('/api/whatsapp/connect', async (req, res) => {
   }
 
   try {
-    const existing = connections.get(deviceId);
-    if (existing && (existing.status === 'connected' || existing.status === 'connecting')) {
-      console.log('[WA-CONNECT] Dispositivo já está conectado:', deviceId);
-      return res.status(200).json({ message: 'Dispositivo já conectado', deviceId });
+    const authFolder = path.join(__dirname, 'auth', deviceId);
+    // Se já existe sessão, remove antes de criar nova
+    if (fs.existsSync(authFolder)) {
+      rimraf.sync(authFolder);
+      qrCodes.delete(deviceId);
+      connections.delete(deviceId);
+      console.log('[WA-CONNECT] Sessão antiga removida para deviceId:', deviceId);
     }
 
     console.log('[WA-CONNECT] Iniciando nova conexão para:', deviceId);
