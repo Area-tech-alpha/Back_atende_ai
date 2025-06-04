@@ -371,6 +371,36 @@ const NewCampaign = () => {
                     required
                   />
                 </div>
+                {/* Upload de Imagem */}
+                <div>
+                  <label className="block text-sm font-medium text-accent mb-2">
+                    Imagem (opcional)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    ref={imageInputRef}
+                    onChange={handleImageUpload}
+                    className="input"
+                  />
+                  {imagePreview && (
+                    <div className="mt-2 relative w-fit">
+                      <img
+                        src={imagePreview}
+                        alt="Preview da imagem"
+                        className="max-h-40 rounded border"
+                      />
+                      <button
+                        type="button"
+                        onClick={removeImage}
+                        className="absolute top-1 right-1 bg-white bg-opacity-80 rounded-full p-1 shadow hover:bg-red-100"
+                        title="Remover imagem"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
