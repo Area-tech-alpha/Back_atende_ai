@@ -50,14 +50,22 @@ function formatPhoneNumber(phone) {
 const startConnection = async (deviceId, connection_name) => {
   console.log('[WA-START] Iniciando conexão para deviceId:', deviceId);
   const authFolder = path.join(__dirname, 'auth', deviceId);
+  // Remover pasta de autenticação antes de criar o socket
+  if (fs.existsSync(authFolder)) {
+    rimraf.sync(authFolder);
+    qrCodes.delete(deviceId);
+    connections.delete(deviceId);
+    console.log('[WA-START] Sessão antiga removida para deviceId:', deviceId);
+  }
   fs.mkdirSync(authFolder, { recursive: true });
 
   const { state, saveCreds } = await useMultiFileAuthState(authFolder);
   console.log('[WA-START] Estado de autenticação carregado:', state.creds ? 'Autenticado' : 'Não autenticado');
 
+  // Criar o socket SEM printar QR no terminal
   const client = makeWASocket({
     auth: state,
-    printQRInTerminal: true,
+    printQRInTerminal: false,
     browser: ['Chrome (Linux)', '', ''],
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
@@ -72,15 +80,18 @@ const startConnection = async (deviceId, connection_name) => {
   connections.set(deviceId, { client, status: 'connecting', deviceId, connection_name: nameToSave });
   console.log('[WA-START] Cliente criado e adicionado ao mapa de conexões');
 
-  // Gerar pairing code se não estiver registrado
+  // Se não estiver registrado, gere o pairing code imediatamente
   if (!state.creds.registered) {
     try {
+      // deviceId é o número do telefone puro (ex: 556199999999)
       const pairingCode = await client.requestPairingCode(deviceId);
-      console.log(`[WA-PAIRING] Código de pareamento gerado para ${deviceId}: ${pairingCode}`);
       qrCodes.set(deviceId, { type: 'pairing', code: pairingCode });
+      console.log(`[WA-PAIRING] Código de pareamento gerado para ${deviceId}: ${pairingCode}`);
     } catch (error) {
       console.error('[WA-PAIRING] Erro ao gerar código de pareamento:', error);
     }
+  } else {
+    console.log('[WA-PAIRING] Sessão já autenticada, não é possível gerar novo pairing code.');
   }
 
   client.ev.on('connection.update', async (update) => {
