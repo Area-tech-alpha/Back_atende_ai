@@ -42,9 +42,11 @@ const ConnectWhatsApp: React.FC = () => {
           }
           setOpenQRDialog(true);
           setConnectionStatus('Aguardando escaneamento do QR Code...');
+        } else if (res.status === 404) {
+          setConnectionStatus('Aguardando geração do QR Code...');
         }
       } catch (e) {}
-      await new Promise(r => setTimeout(r, 4000));
+      await new Promise(r => setTimeout(r, 1000));
       attempts++;
     }
   };

@@ -117,7 +117,7 @@ const startConnection = async (deviceId, connection_name) => {
 
     if (update.connection === 'open') {
       console.log(`[WA-CONNECTED] deviceId=${deviceId}`);
-      connections.set(deviceId, { client, status: 'connected', deviceId, connection_name });
+      connections.set(deviceId, { client, status: 'connected', deviceId, connection_name, retries: 0 });
 
     } else if (update.connection === 'close') {
       const statusCode = update.lastDisconnect?.error?.output?.statusCode;
@@ -126,14 +126,20 @@ const startConnection = async (deviceId, connection_name) => {
       console.warn(`[WA-DISCONNECTED] deviceId=${deviceId} - Motivo: ${reason}`);
 
       if (statusCode !== DisconnectReason.loggedOut) {
-        console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId}`);
-        connections.set(deviceId, { client, status: 'reconnecting', deviceId, connection_name });
+        // Controle de tentativas de reconexão
+        let retries = (connections.get(deviceId)?.retries || 0) + 1;
+        if (retries > 5) {
+          console.error(`[WA-RECONNECT] Limite de tentativas atingido para deviceId=${deviceId}`);
+          connections.set(deviceId, { ...connections.get(deviceId), status: 'error', retries });
+          return;
+        }
+        connections.set(deviceId, { ...connections.get(deviceId), status: 'reconnecting', retries });
         setTimeout(() => {
           startConnection(deviceId, connection_name);
-        }, 5000);
+        }, 10000); // 10 segundos
       } else {
         console.log(`[WA-LOGOUT] Sessão do deviceId=${deviceId} desconectada permanentemente.`);
-        connections.set(deviceId, { client, status: 'loggedOut', deviceId, connection_name });
+        connections.set(deviceId, { client, status: 'loggedOut', deviceId, connection_name, retries: 0 });
       }
     }
 
@@ -261,7 +267,7 @@ app.post('/api/whatsapp/connect', async (req, res) => {
 
       if (update.connection === 'open') {
         console.log(`[WA-CONNECTED] deviceId=${deviceId}`);
-        connections.set(deviceId, { client, status: 'connected', deviceId, connection_name });
+        connections.set(deviceId, { client, status: 'connected', deviceId, connection_name, retries: 0 });
 
       } else if (update.connection === 'close') {
         const statusCode = update.lastDisconnect?.error?.output?.statusCode;
@@ -270,14 +276,20 @@ app.post('/api/whatsapp/connect', async (req, res) => {
         console.warn(`[WA-DISCONNECTED] deviceId=${deviceId} - Motivo: ${reason}`);
 
         if (statusCode !== DisconnectReason.loggedOut) {
-          console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId}`);
-          connections.set(deviceId, { client, status: 'reconnecting', deviceId, connection_name });
+          // Controle de tentativas de reconexão
+          let retries = (connections.get(deviceId)?.retries || 0) + 1;
+          if (retries > 5) {
+            console.error(`[WA-RECONNECT] Limite de tentativas atingido para deviceId=${deviceId}`);
+            connections.set(deviceId, { ...connections.get(deviceId), status: 'error', retries });
+            return;
+          }
+          connections.set(deviceId, { ...connections.get(deviceId), status: 'reconnecting', retries });
           setTimeout(() => {
             startConnection(deviceId, connection_name);
-          }, 5000);
+          }, 10000); // 10 segundos
         } else {
           console.log(`[WA-LOGOUT] Sessão do deviceId=${deviceId} desconectada permanentemente.`);
-          connections.set(deviceId, { client, status: 'loggedOut', deviceId, connection_name });
+          connections.set(deviceId, { client, status: 'loggedOut', deviceId, connection_name, retries: 0 });
         }
       }
 
