@@ -253,28 +253,28 @@ const Contacts = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
         <h1 className="text-3xl font-display font-bold bg-gradient-to-r from-primary to-primary-dark bg-clip-text text-transparent">
           Contatos
         </h1>
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <button 
             onClick={() => setShowImportModal(true)}
-            className="btn-secondary flex items-center space-x-2"
+            className="btn-secondary flex items-center space-x-2 w-full sm:w-auto justify-center"
           >
             <Upload size={16} />
             <span>Importar</span>
           </button>
           <button 
             onClick={() => setShowExportModal(true)}
-            className="btn-secondary flex items-center space-x-2"
+            className="btn-secondary flex items-center space-x-2 w-full sm:w-auto justify-center"
           >
             <Download size={16} />
             <span>Exportar</span>
           </button>
           <button 
             onClick={() => setModal({ isOpen: true, type: 'contact' })}
-            className="btn-primary flex items-center space-x-2"
+            className="btn-primary flex items-center space-x-2 w-full sm:w-auto justify-center"
           >
             <Plus size={16} />
             <span>Novo Contato</span>

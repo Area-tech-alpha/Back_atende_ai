@@ -15,6 +15,7 @@ const ConnectWhatsApp: React.FC = () => {
   const { user } = useAuth();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<string>('Desconectado');
   const [openQRDialog, setOpenQRDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,6 +30,7 @@ const ConnectWhatsApp: React.FC = () => {
         if (res.ok) {
           const data = await res.json();
           setQrCode(data.qr);
+          setPairingCode(data.pairingCode || null);
           setOpenQRDialog(true);
           setConnectionStatus('Aguardando escaneamento do QR Code...');
           return;
@@ -204,6 +206,16 @@ const ConnectWhatsApp: React.FC = () => {
                   level="H"
                   style={{ marginBottom: 12 }}
                 />
+                {pairingCode && (
+                  <Box sx={{ mt: 2, mb: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <Typography variant="subtitle2" sx={{ color: YELLOW_DARK, fontWeight: 700, mb: 0.5 }}>
+                      Código de Pareamento
+                    </Typography>
+                    <Typography variant="h5" sx={{ fontFamily: 'monospace', letterSpacing: 2, color: '#222', background: '#FFFDE7', borderRadius: 2, px: 2, py: 1 }}>
+                      {pairingCode}
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             )}
             <Typography variant="body1" sx={{ color: '#444', mt: 3, textAlign: 'center' }}>

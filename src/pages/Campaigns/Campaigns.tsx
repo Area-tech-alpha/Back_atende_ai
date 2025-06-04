@@ -137,13 +137,13 @@ const Campaigns = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
         <h1 className="text-3xl font-display font-bold bg-gradient-to-r from-primary to-primary-dark bg-clip-text text-transparent">
           Campanhas
         </h1>
         <button 
           onClick={() => navigate('/campaigns/new')}
-          className="btn-primary flex items-center space-x-2"
+          className="btn-primary flex items-center space-x-2 w-full sm:w-auto justify-center"
         >
           <Plus size={16} />
           <span>Nova Campanha</span>
