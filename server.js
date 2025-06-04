@@ -50,22 +50,14 @@ function formatPhoneNumber(phone) {
 const startConnection = async (deviceId, connection_name) => {
   console.log('[WA-START] Iniciando conexão para deviceId:', deviceId);
   const authFolder = path.join(__dirname, 'auth', deviceId);
-  // Remover pasta de autenticação antes de criar o socket
-  if (fs.existsSync(authFolder)) {
-    rimraf.sync(authFolder);
-    qrCodes.delete(deviceId);
-    connections.delete(deviceId);
-    console.log('[WA-START] Sessão antiga removida para deviceId:', deviceId);
-  }
   fs.mkdirSync(authFolder, { recursive: true });
 
   const { state, saveCreds } = await useMultiFileAuthState(authFolder);
   console.log('[WA-START] Estado de autenticação carregado:', state.creds ? 'Autenticado' : 'Não autenticado');
 
-  // Criar o socket SEM printar QR no terminal
   const client = makeWASocket({
     auth: state,
-    printQRInTerminal: true, // Para garantir que o evento 'qr' seja disparado
+    printQRInTerminal: true,
     browser: ['Chrome (Linux)', '', ''],
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
@@ -80,34 +72,6 @@ const startConnection = async (deviceId, connection_name) => {
   connections.set(deviceId, { client, status: 'connecting', deviceId, connection_name: nameToSave });
   console.log('[WA-START] Cliente criado e adicionado ao mapa de conexões');
 
-  // Captura o QR Code
-  client.ev.on('qr', (qr) => {
-    qrcode.toDataURL(qr, (err, url) => {
-      if (!err) {
-        const prevData = qrCodes.get(deviceId) || {};
-        qrCodes.set(deviceId, { ...prevData, qr: url });
-        console.log(`[WA-QR] QR Code base64 salvo para deviceId=${deviceId}`);
-      } else {
-        console.error('[WA-QR] Erro ao gerar QR Code base64:', err);
-      }
-    });
-  });
-
-  // Se não estiver registrado, gere o pairing code imediatamente
-  if (!state.creds.registered) {
-    try {
-      // deviceId é o número do telefone puro (ex: 556199999999)
-      const pairingCode = await client.requestPairingCode(deviceId);
-      const prevData = qrCodes.get(deviceId) || {};
-      qrCodes.set(deviceId, { ...prevData, pairingCode });
-      console.log(`[WA-PAIRING] Código de pareamento gerado para ${deviceId}: ${pairingCode}`);
-    } catch (error) {
-      console.error('[WA-PAIRING] Erro ao gerar código de pareamento:', error);
-    }
-  } else {
-    console.log('[WA-PAIRING] Sessão já autenticada, não é possível gerar novo pairing code.');
-  }
-
   client.ev.on('connection.update', async (update) => {
     console.log(`[WA-UPDATE] ${deviceId}:`, update);
 
@@ -117,7 +81,7 @@ const startConnection = async (deviceId, connection_name) => {
 
     if (update.connection === 'open') {
       console.log(`[WA-CONNECTED] deviceId=${deviceId}`);
-      connections.set(deviceId, { client, status: 'connected', deviceId, connection_name, retries: 0 });
+      connections.set(deviceId, { client, status: 'connected', deviceId, connection_name });
 
     } else if (update.connection === 'close') {
       const statusCode = update.lastDisconnect?.error?.output?.statusCode;
@@ -126,31 +90,37 @@ const startConnection = async (deviceId, connection_name) => {
       console.warn(`[WA-DISCONNECTED] deviceId=${deviceId} - Motivo: ${reason}`);
 
       if (statusCode !== DisconnectReason.loggedOut) {
-        // Controle de tentativas de reconexão
-        let retries = (connections.get(deviceId)?.retries || 0) + 1;
-        if (retries > 5) {
-          console.error(`[WA-RECONNECT] Limite de tentativas atingido para deviceId=${deviceId}`);
-          connections.set(deviceId, { ...connections.get(deviceId), status: 'error', retries });
-          return;
-        }
-        connections.set(deviceId, { ...connections.get(deviceId), status: 'reconnecting', retries });
+        console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId}`);
+        connections.set(deviceId, { client, status: 'reconnecting', deviceId, connection_name });
         setTimeout(() => {
           startConnection(deviceId, connection_name);
-        }, 10000); // 10 segundos
+        }, 5000);
       } else {
         console.log(`[WA-LOGOUT] Sessão do deviceId=${deviceId} desconectada permanentemente.`);
-        connections.set(deviceId, { client, status: 'loggedOut', deviceId, connection_name, retries: 0 });
+        connections.set(deviceId, { client, status: 'loggedOut', deviceId, connection_name });
       }
     }
 
     if (update.qr) {
-      qrCodes.set(deviceId, { type: 'qr', code: update.qr });
+      qrCodes.set(deviceId, update.qr);
       console.log(`[WA-QR] QR Code string salvo via connection.update para deviceId=${deviceId}`);
     }
   });
 
   client.ev.on('creds.update', saveCreds);
   console.log('[WA-START] Eventos de conexão e credenciais configurados');
+
+  // Sempre tentar gerar o QR code, independente do estado
+  client.ev.on('qr', (qr) => {
+    qrcode.toDataURL(qr, (err, url) => {
+      if (!err) {
+        qrCodes.set(deviceId, url); // Salva o base64
+        console.log(`[WA-QR] QR Code base64 salvo para deviceId=${deviceId}`);
+      } else {
+        console.error('[WA-QR] Erro ao gerar QR Code base64:', err);
+      }
+    });
+  });
 
   return client;
 };
@@ -196,112 +166,57 @@ const createNewConnection = async (deviceId, authFolder) => {
 
 // Rota para conectar ao WhatsApp
 app.post('/api/whatsapp/connect', async (req, res) => {
-  const { deviceId, connectionName, mode } = req.body; // mode: 'qr' ou 'pairing'
-  console.log('[WA-CONNECT] Iniciando conexão para deviceId:', deviceId, 'modo:', mode);
+  const { deviceId, connectionName } = req.body;
+  console.log('[WA-CONNECT] Iniciando conexão para deviceId:', deviceId);
 
   if (!deviceId) {
     return res.status(400).json({ error: 'Parâmetro deviceId é obrigatório.' });
   }
-  if (!mode || (mode !== 'qr' && mode !== 'pairing')) {
-    return res.status(400).json({ error: 'Parâmetro mode é obrigatório (qr ou pairing).' });
-  }
 
   try {
-    const authFolder = path.join(__dirname, 'auth', deviceId);
-    // Se já existe sessão, remove antes de criar nova
-    if (fs.existsSync(authFolder)) {
-      rimraf.sync(authFolder);
-      qrCodes.delete(deviceId);
-      connections.delete(deviceId);
-      console.log('[WA-CONNECT] Sessão antiga removida para deviceId:', deviceId);
-    }
-    fs.mkdirSync(authFolder, { recursive: true });
-    const { state, saveCreds } = await useMultiFileAuthState(authFolder);
-    const client = makeWASocket({
-      auth: state,
-      printQRInTerminal: mode === 'qr',
-      browser: ['Chrome (Linux)', '', ''],
-      connectTimeoutMs: 60000,
-      defaultQueryTimeoutMs: 60000,
-      retryRequestDelayMs: 250,
-      markOnlineOnConnect: false,
-      deviceId: deviceId
-    });
-    const prev = connections.get(deviceId);
-    const nameToSave = connectionName || (prev && prev.connection_name);
-    connections.set(deviceId, { client, status: 'connecting', deviceId, connection_name: nameToSave });
-    console.log('[WA-START] Cliente criado e adicionado ao mapa de conexões');
-
-    if (!state.creds.registered) {
-      if (mode === 'pairing') {
-        try {
-          const pairingCode = await client.requestPairingCode(deviceId);
-          qrCodes.set(deviceId, { pairingCode });
-          console.log(`[WA-PAIRING] Código de pareamento gerado para ${deviceId}: ${pairingCode}`);
-        } catch (error) {
-          console.error('[WA-PAIRING] Erro ao gerar código de pareamento:', error);
-        }
-      }
-      // Se for modo QR, não faz nada, só espera o evento 'qr'
+    const existing = connections.get(deviceId);
+    if (existing && (existing.status === 'connected' || existing.status === 'connecting')) {
+      console.log('[WA-CONNECT] Dispositivo já está conectado:', deviceId);
+      return res.status(200).json({ message: 'Dispositivo já conectado', deviceId });
     }
 
-    client.ev.on('qr', (qr) => {
-      if (mode === 'qr') {
-        qrcode.toDataURL(qr, (err, url) => {
-          if (!err) {
-            qrCodes.set(deviceId, { qr: url });
-            console.log(`[WA-QR] QR Code base64 salvo para deviceId=${deviceId}`);
-          } else {
-            console.error('[WA-QR] Erro ao gerar QR Code base64:', err);
-          }
-        });
-      }
+    console.log('[WA-CONNECT] Iniciando nova conexão para:', deviceId);
+    const client = await startConnection(deviceId, connectionName);
+
+    // Gerar QR code e enviar na resposta
+    console.log('[WA-CONNECT] Aguardando geração do QR code...');
+    const qrPromise = new Promise((resolve) => {
+      client.ev.on('qr', async (qr) => {
+        console.log('[WA-CONNECT] QR code recebido');
+        resolve({ qr, status: 'pending' });
+      });
+
+      // Adicionar timeout para o evento QR
+      setTimeout(() => {
+        console.log('[WA-CONNECT] Timeout aguardando QR code');
+        resolve(null);
+      }, 30000);
     });
 
-    client.ev.on('connection.update', async (update) => {
-      console.log(`[WA-UPDATE] ${deviceId}:`, update);
+    const result = await qrPromise;
+    console.log('[WA-CONNECT] Resultado da geração do QR code:', result ? 'Sucesso' : 'Falha');
 
-      // Recupera o nome salvo, se existir
-      const prev = connections.get(deviceId);
-      const connection_name = prev && prev.connection_name ? prev.connection_name : undefined;
-
-      if (update.connection === 'open') {
-        console.log(`[WA-CONNECTED] deviceId=${deviceId}`);
-        connections.set(deviceId, { client, status: 'connected', deviceId, connection_name, retries: 0 });
-
-      } else if (update.connection === 'close') {
-        const statusCode = update.lastDisconnect?.error?.output?.statusCode;
-        const reason = update.lastDisconnect?.error?.message || 'Desconhecido';
-
-        console.warn(`[WA-DISCONNECTED] deviceId=${deviceId} - Motivo: ${reason}`);
-
-        if (statusCode !== DisconnectReason.loggedOut) {
-          // Controle de tentativas de reconexão
-          let retries = (connections.get(deviceId)?.retries || 0) + 1;
-          if (retries > 5) {
-            console.error(`[WA-RECONNECT] Limite de tentativas atingido para deviceId=${deviceId}`);
-            connections.set(deviceId, { ...connections.get(deviceId), status: 'error', retries });
-            return;
-          }
-          connections.set(deviceId, { ...connections.get(deviceId), status: 'reconnecting', retries });
-          setTimeout(() => {
-            startConnection(deviceId, connection_name);
-          }, 10000); // 10 segundos
-        } else {
-          console.log(`[WA-LOGOUT] Sessão do deviceId=${deviceId} desconectada permanentemente.`);
-          connections.set(deviceId, { client, status: 'loggedOut', deviceId, connection_name, retries: 0 });
-        }
-      }
-
-      if (update.qr) {
-        qrCodes.set(deviceId, { type: 'qr', code: update.qr });
-        console.log(`[WA-QR] QR Code string salvo via connection.update para deviceId=${deviceId}`);
-      }
-    });
-
-    client.ev.on('creds.update', saveCreds);
-    console.log('[WA-START] Eventos de conexão e credenciais configurados');
-    return res.status(200).json({ message: 'Conexão iniciada', deviceId, status: 'connecting' });
+    if (result && result.qr) {
+      console.log('[WA-CONNECT] Enviando QR code para o cliente');
+      return res.status(200).json({ 
+        message: 'QR Code gerado', 
+        deviceId,
+        qr: result.qr,
+        status: result.status
+      });
+    } else {
+      console.log('[WA-CONNECT] Nenhum QR code gerado, enviando resposta padrão');
+      return res.status(200).json({ 
+        message: 'Conexão iniciada, aguardando QR Code', 
+        deviceId,
+        status: 'connecting'
+      });
+    }
   } catch (err) {
     console.error(`[WA-CONNECT-ERROR] Erro ao conectar ${deviceId}:`, err);
     return res.status(500).json({ error: 'Erro ao conectar WhatsApp', details: err.message });
@@ -423,17 +338,16 @@ app.post('/api/whatsapp/send', async (req, res) => {
   }
 });
 
-// Endpoint para buscar o QR code ou Pairing Code atual
+// Endpoint para buscar o QR code atual
 app.get('/api/whatsapp/qr/:deviceId', (req, res) => {
   const { deviceId } = req.params;
-  const qrData = qrCodes.get(deviceId) || {};
-  if (qrData.qr) {
-    return res.json({ qr: qrData.qr });
+  console.log('[DEBUG] Buscando QR para deviceId:', deviceId, 'Map keys:', Array.from(qrCodes.keys()));
+  const qr = qrCodes.get(deviceId);
+  if (qr) {
+    return res.json({ qr });
   }
-  if (qrData.pairingCode) {
-    return res.json({ pairingCode: qrData.pairingCode });
-  }
-  return res.status(404).json({ error: 'QR code ou Pairing Code não encontrado' });
+  console.log('[DEBUG] QR code não encontrado para deviceId:', deviceId);
+  return res.status(404).json({ error: 'QR code não encontrado' });
 });
 
 // Rota para deletar sessão
