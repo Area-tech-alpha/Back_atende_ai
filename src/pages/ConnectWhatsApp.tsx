@@ -24,19 +24,26 @@ const ConnectWhatsApp: React.FC = () => {
 
   const pollQrCode = async (deviceId: string) => {
     let attempts = 0;
-    while (attempts < 15) {
+    let lastPairingCode = null;
+    let lastQrCode = null;
+    while (attempts < 30) {
       try {
         const res = await fetch(`/api/whatsapp/qr/${deviceId}`);
         if (res.ok) {
           const data = await res.json();
-          setQrCode(data.qr);
-          setPairingCode(data.pairingCode || null);
+          if (data.qr && data.qr !== lastQrCode) {
+            setQrCode(data.qr);
+            lastQrCode = data.qr;
+          }
+          if (data.pairingCode && data.pairingCode !== lastPairingCode) {
+            setPairingCode(data.pairingCode);
+            lastPairingCode = data.pairingCode;
+          }
           setOpenQRDialog(true);
           setConnectionStatus('Aguardando escaneamento do QR Code...');
-          return;
         }
       } catch (e) {}
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 4000));
       attempts++;
     }
   };
