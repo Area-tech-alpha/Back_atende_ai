@@ -250,7 +250,7 @@ const NewCampaign = () => {
       console.log('Mensagem salva com sucesso:', messageData);
 
       // If immediate sending, make API call to Evolution
-      if (isImmediate) {
+      if (!draft && isImmediate) {
         const errors: string[] = [];
         for (const [index, contact] of contacts.entries()) {
           let envioStatus = 'success';
