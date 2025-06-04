@@ -65,7 +65,7 @@ const startConnection = async (deviceId, connection_name) => {
   // Criar o socket SEM printar QR no terminal
   const client = makeWASocket({
     auth: state,
-    printQRInTerminal: false,
+    printQRInTerminal: true, // Para garantir que o evento 'qr' seja disparado
     browser: ['Chrome (Linux)', '', ''],
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
@@ -80,12 +80,26 @@ const startConnection = async (deviceId, connection_name) => {
   connections.set(deviceId, { client, status: 'connecting', deviceId, connection_name: nameToSave });
   console.log('[WA-START] Cliente criado e adicionado ao mapa de conexões');
 
+  // Captura o QR Code
+  client.ev.on('qr', (qr) => {
+    qrcode.toDataURL(qr, (err, url) => {
+      if (!err) {
+        const prevData = qrCodes.get(deviceId) || {};
+        qrCodes.set(deviceId, { ...prevData, qr: url });
+        console.log(`[WA-QR] QR Code base64 salvo para deviceId=${deviceId}`);
+      } else {
+        console.error('[WA-QR] Erro ao gerar QR Code base64:', err);
+      }
+    });
+  });
+
   // Se não estiver registrado, gere o pairing code imediatamente
   if (!state.creds.registered) {
     try {
       // deviceId é o número do telefone puro (ex: 556199999999)
       const pairingCode = await client.requestPairingCode(deviceId);
-      qrCodes.set(deviceId, { type: 'pairing', code: pairingCode });
+      const prevData = qrCodes.get(deviceId) || {};
+      qrCodes.set(deviceId, { ...prevData, pairingCode });
       console.log(`[WA-PAIRING] Código de pareamento gerado para ${deviceId}: ${pairingCode}`);
     } catch (error) {
       console.error('[WA-PAIRING] Erro ao gerar código de pareamento:', error);
@@ -131,18 +145,6 @@ const startConnection = async (deviceId, connection_name) => {
 
   client.ev.on('creds.update', saveCreds);
   console.log('[WA-START] Eventos de conexão e credenciais configurados');
-
-  // Sempre tentar gerar o QR code, independente do estado
-  client.ev.on('qr', (qr) => {
-    qrcode.toDataURL(qr, (err, url) => {
-      if (!err) {
-        qrCodes.set(deviceId, { type: 'qr', code: url }); // Salva o base64
-        console.log(`[WA-QR] QR Code base64 salvo para deviceId=${deviceId}`);
-      } else {
-        console.error('[WA-QR] Erro ao gerar QR Code base64:', err);
-      }
-    });
-  });
 
   return client;
 };
@@ -363,21 +365,16 @@ app.post('/api/whatsapp/send', async (req, res) => {
   }
 });
 
-// Endpoint para buscar o QR code atual
+// Endpoint para buscar o QR code e Pairing Code atual
 app.get('/api/whatsapp/qr/:deviceId', (req, res) => {
   const { deviceId } = req.params;
-  console.log('[DEBUG] Buscando QR para deviceId:', deviceId, 'Map keys:', Array.from(qrCodes.keys()));
-  const qrData = qrCodes.get(deviceId);
-  
-  if (qrData) {
-    if (qrData.type === 'pairing') {
-      return res.json({ pairingCode: qrData.code });
-    } else {
-      return res.json({ qr: qrData.code });
-    }
+  const qrData = qrCodes.get(deviceId) || {};
+  if (qrData.qr || qrData.pairingCode) {
+    return res.json({
+      qr: qrData.qr || null,
+      pairingCode: qrData.pairingCode || null
+    });
   }
-  
-  console.log('[DEBUG] QR code não encontrado para deviceId:', deviceId);
   return res.status(404).json({ error: 'QR code não encontrado' });
 });
 

@@ -199,23 +199,26 @@ const ConnectWhatsApp: React.FC = () => {
         <DialogContent>
           <Box className="flex flex-col items-center p-4" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
             {qrCode && (
-              <Box sx={{ background: '#fff', p: 3, borderRadius: 3, boxShadow: 2, border: `2px solid ${YELLOW_DARK}` }}>
+              <Box sx={{ background: '#fff', p: 3, borderRadius: 3, boxShadow: 2, border: `2px solid ${YELLOW_DARK}`, mb: 2 }}>
                 <QRCodeSVG
                   value={qrCode}
                   size={220}
                   level="H"
                   style={{ marginBottom: 12 }}
                 />
-                {pairingCode && (
-                  <Box sx={{ mt: 2, mb: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <Typography variant="subtitle2" sx={{ color: YELLOW_DARK, fontWeight: 700, mb: 0.5 }}>
-                      Código de Pareamento
-                    </Typography>
-                    <Typography variant="h5" sx={{ fontFamily: 'monospace', letterSpacing: 2, color: '#222', background: '#FFFDE7', borderRadius: 2, px: 2, py: 1 }}>
-                      {pairingCode}
-                    </Typography>
-                  </Box>
-                )}
+                <Typography variant="subtitle2" sx={{ color: YELLOW_DARK, fontWeight: 700, mt: 1 }}>
+                  QR Code
+                </Typography>
+              </Box>
+            )}
+            {pairingCode && (
+              <Box sx={{ mt: 2, mb: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <Typography variant="subtitle2" sx={{ color: YELLOW_DARK, fontWeight: 700, mb: 0.5 }}>
+                  Código de Pareamento
+                </Typography>
+                <Typography variant="h5" sx={{ fontFamily: 'monospace', letterSpacing: 2, color: '#222', background: '#FFFDE7', borderRadius: 2, px: 2, py: 1 }}>
+                  {pairingCode}
+                </Typography>
               </Box>
             )}
             <Typography variant="body1" sx={{ color: '#444', mt: 3, textAlign: 'center' }}>
