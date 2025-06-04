@@ -17,14 +17,15 @@ interface ContactList {
 }
 
 const formatPhoneNumber = (phone: string): string => {
-  // Remove any non-numeric characters
+  // Remove qualquer caractere não numérico
   let cleaned = phone.replace(/\D/g, '');
 
-  // Ensure it starts with country code
+  // Garante que começa com 55
   if (!cleaned.startsWith('55')) {
     cleaned = '55' + cleaned;
   }
 
+  // Não altera mais nada, apenas retorna
   return cleaned;
 };
 

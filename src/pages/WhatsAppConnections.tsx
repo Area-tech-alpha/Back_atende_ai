@@ -66,6 +66,28 @@ const WhatsAppConnections: React.FC = () => {
     }
   };
 
+  // Função para excluir/desconectar conexão
+  const handleDeleteConnection = async (deviceId: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir esta conexão?')) return;
+    try {
+      const response = await fetch(`/api/whatsapp/session/${deviceId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Erro ao excluir conexão');
+      fetchConnections();
+    } catch (err) {
+      alert('Erro ao excluir conexão');
+    }
+  };
+
+  const handleDisconnectConnection = async (deviceId: string) => {
+    try {
+      const response = await fetch(`/api/whatsapp/session/${deviceId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Erro ao desconectar');
+      fetchConnections();
+    } catch (err) {
+      alert('Erro ao desconectar');
+    }
+  };
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Conexões WhatsApp</h1>
@@ -96,6 +118,18 @@ const WhatsAppConnections: React.FC = () => {
                   <span className={`${getStatusColor(connection.status)} font-medium`}>
                     {getStatusText(connection.status)}
                   </span>
+                  <button
+                    className="ml-2 text-yellow-600 hover:text-yellow-800 text-sm font-medium"
+                    onClick={() => handleDisconnectConnection(connection.deviceId || connection.id)}
+                  >
+                    Desconectar
+                  </button>
+                  <button
+                    className="ml-2 text-red-600 hover:text-red-800 text-sm font-medium"
+                    onClick={() => handleDeleteConnection(connection.deviceId || connection.id)}
+                  >
+                    Excluir
+                  </button>
                 </div>
               </div>
             ))}
