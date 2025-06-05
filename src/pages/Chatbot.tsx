@@ -11,7 +11,7 @@ export default function Chatbot() {
     setError('');
     try {
       const { data } = await axios.get('/api/mistral/agents');
-      setAgents(data?.data || []);
+      setAgents(Array.isArray(data) ? data : []);
     } catch (err) {
       setError('Erro ao buscar agentes.');
     }
@@ -37,6 +37,9 @@ export default function Chatbot() {
             <div className="font-bold text-lg">{agent.name}</div>
             <div className="text-gray-700 mb-2">{agent.description}</div>
             <div className="text-xs text-gray-500">ID: {agent.id}</div>
+            <div className="text-xs text-gray-400">Modelo: {agent.model}</div>
+            <div className="text-xs text-gray-400">Criado em: {new Date(agent.created_at).toLocaleString()}</div>
+            <div className="text-xs text-gray-400">Atualizado em: {new Date(agent.updated_at).toLocaleString()}</div>
             {/* Adicione mais campos relevantes conforme a resposta da API */}
           </li>
         ))}
