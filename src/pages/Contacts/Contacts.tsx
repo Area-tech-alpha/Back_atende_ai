@@ -306,9 +306,23 @@ const Contacts = () => {
               <h3 className="font-display font-bold text-accent truncate">
                 {list.name || `Lista ${list.id}`}
               </h3>
-              <span className="text-sm text-accent/60">
-                {list.contatos.length} contatos
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-accent/60">
+                  {list.contatos.length} contatos
+                </span>
+                <button
+                  className="text-red-500 hover:text-red-700 ml-2 text-xs font-medium"
+                  title="Excluir lista"
+                  onClick={async () => {
+                    if (window.confirm('Tem certeza que deseja excluir esta lista de contatos?')) {
+                      await supabase.from('contato_evolution').delete().eq('id', list.id);
+                      setContactLists(prev => prev.filter(l => l.id !== list.id));
+                    }
+                  }}
+                >
+                  Excluir Lista
+                </button>
+              </div>
             </div>
             <div className="space-y-3">
               {list.contatos.slice(0, 3).map((contact, index) => (
