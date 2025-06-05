@@ -441,6 +441,40 @@ app.get('/api/mistral/agents', async (req, res) => {
   }
 });
 
+// Rota para criar um agente na Mistral
+app.post('/api/mistral/agents', async (req, res) => {
+  try {
+    const response = await axios.post('https://api.mistral.ai/v1/agents', req.body, {
+      headers: {
+        'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+    res.json(response.data);
+  } catch (error) {
+    console.error('Erro ao criar agente na Mistral:', error?.response?.data || error.message);
+    res.status(500).json({ error: 'Erro ao criar agente na Mistral' });
+  }
+});
+
+// Rota para listar modelos da Mistral
+app.get('/api/mistral/models', async (req, res) => {
+  try {
+    const response = await axios.get('https://api.mistral.ai/v1/models', {
+      headers: {
+        'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+    res.json(response.data);
+  } catch (error) {
+    console.error('Erro ao buscar modelos da Mistral:', error?.response?.data || error.message);
+    res.status(500).json({ error: 'Erro ao buscar modelos da Mistral' });
+  }
+});
+
 // Rota para servir o frontend em todas as outras rotas
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));

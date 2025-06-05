@@ -17,6 +17,7 @@ import Chat from './pages/Chat';
 import ConnectWhatsApp from './pages/ConnectWhatsApp';
 import WhatsAppConnections from './pages/WhatsAppConnections';
 import Chatbot from './pages/Chatbot';
+import CreateAgent from './pages/CreateAgent';
 
 const ProtectedRouteComponent = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
@@ -55,6 +56,7 @@ function App() {
               <Route path="whatsapp/connect" element={<ProtectedRouteComponent><ConnectWhatsApp /></ProtectedRouteComponent>} />
               <Route path="whatsapp/connections" element={<ProtectedRouteComponent><WhatsAppConnections /></ProtectedRouteComponent>} />
               <Route path="chatbot" element={<ProtectedRouteComponent><Chatbot /></ProtectedRouteComponent>} />
+              <Route path="criar-robo" element={<ProtectedRouteComponent><CreateAgent /></ProtectedRouteComponent>} />
             </Route>
             
             {/* 404 route */}

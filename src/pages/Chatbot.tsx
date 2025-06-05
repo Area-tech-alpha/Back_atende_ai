@@ -10,9 +10,12 @@ export default function Chatbot() {
     setLoading(true);
     setError('');
     try {
+      console.log('Buscando agentes da Mistral...');
       const { data } = await axios.get('/api/mistral/agents');
+      console.log('Resposta da API de agentes:', data);
       setAgents(Array.isArray(data) ? data : []);
     } catch (err) {
+      console.error('Erro ao buscar agentes:', err);
       setError('Erro ao buscar agentes.');
     }
     setLoading(false);

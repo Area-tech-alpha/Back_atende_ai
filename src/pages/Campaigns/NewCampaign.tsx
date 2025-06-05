@@ -200,17 +200,17 @@ const NewCampaign = () => {
       // Salvar contatos apenas se não houver lista selecionada
       let contatosId = selectedContactListId;
       if (!selectedContactListId) {
-        const { data: contactsData, error: contactsError } = await supabase
-          .from('contato_evolution')
-          .insert([
-            {
-              contatos: JSON.stringify(contacts),
-              relacao_login: user?.id
-            }
-          ])
-          .select()
-          .single();
-        if (contactsError) throw contactsError;
+      const { data: contactsData, error: contactsError } = await supabase
+        .from('contato_evolution')
+        .insert([
+          {
+            contatos: JSON.stringify(contacts),
+            relacao_login: user?.id
+          }
+        ])
+        .select()
+        .single();
+      if (contactsError) throw contactsError;
         contatosId = contactsData.id;
       }
 
