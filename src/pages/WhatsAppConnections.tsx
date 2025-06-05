@@ -142,12 +142,6 @@ const WhatsAppConnections: React.FC = () => {
                       </button>
                     </div>
                   )}
-                  <button
-                    className="ml-2 text-red-600 hover:text-red-800 text-sm font-medium"
-                    onClick={() => handleDeleteConnection(connection.deviceId || connection.id)}
-                  >
-                    Excluir
-                  </button>
                 </div>
               </div>
             ))}

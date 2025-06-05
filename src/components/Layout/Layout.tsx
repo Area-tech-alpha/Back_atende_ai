@@ -22,8 +22,6 @@ const Layout = () => {
     { path: '/whatsapp/connections', label: 'Conexões', icon: <Phone size={20} /> },
     { path: '/baileys', label: 'Conectar WhatsApp', icon: <Smartphone size={20} /> },
     { path: '/campaigns', label: 'Campanhas', icon: <FileText size={20} /> },
-    // { path: '/chatbot', label: 'Chatbot', icon: <Bot size={20} /> },
-    // { path: '/criar-robo', label: 'Criar Robô', icon: <Bot size={20} /> },
   ];
 
   const toggleSidebar = () => {

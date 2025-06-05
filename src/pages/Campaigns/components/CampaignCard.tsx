@@ -106,7 +106,7 @@ const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, reuseCampaign }) 
           <ArrowUpRight size={16} className="mr-1" />
           Ver Detalhes
         </button>
-        {campaign.status === 'Completed' && (
+        {(campaign.status === 'Completed' || campaign.status === 'Draft') && (
           <button
             className="text-accent/60 text-sm font-medium hover:text-primary transition-colors duration-200 ml-2"
             onClick={() => navigate('/campaigns/new', { state: { reuseCampaign: reuseCampaign || campaign } })}

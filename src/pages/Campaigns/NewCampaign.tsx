@@ -542,6 +542,7 @@ const NewCampaign = () => {
                     min="0"
                     placeholder="0"
                   />
+                  <span className="text-xs text-accent/60 mt-1 block">Recomendado: 60 segundos</span>
                 </div>
               </div>
             </div>
