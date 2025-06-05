@@ -16,6 +16,7 @@ import Baileys from './pages/Baileys/Baileys';
 import Chat from './pages/Chat';
 import ConnectWhatsApp from './pages/ConnectWhatsApp';
 import WhatsAppConnections from './pages/WhatsAppConnections';
+import Chatbot from './pages/Chatbot';
 
 const ProtectedRouteComponent = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
@@ -53,6 +54,7 @@ function App() {
               <Route path="settings" element={<Settings />} />
               <Route path="whatsapp/connect" element={<ProtectedRouteComponent><ConnectWhatsApp /></ProtectedRouteComponent>} />
               <Route path="whatsapp/connections" element={<ProtectedRouteComponent><WhatsAppConnections /></ProtectedRouteComponent>} />
+              <Route path="chatbot" element={<ProtectedRouteComponent><Chatbot /></ProtectedRouteComponent>} />
             </Route>
             
             {/* 404 route */}

@@ -9,6 +9,8 @@ const path = require('path');
 const axios = require('axios');
 const crypto = require('crypto');
 const rimraf = require('rimraf');
+const mistralService = require('./src/services/mistralService');
+const { setChatbot, removeChatbot, toggleChatbot, getChatbot, listChatbots } = require('./src/config/chatbots');
 
 // Polyfill para o crypto no ambiente do Railway
 if (typeof global.crypto === 'undefined') {
@@ -20,7 +22,11 @@ const port = process.env.PORT || 3001;
 
 // Configuração do CORS
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: [
+    process.env.FRONTEND_URL || '*',
+    'http://localhost:4000',
+    'https://lionchat.tech'
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -120,6 +126,28 @@ const startConnection = async (deviceId, connection_name) => {
         console.error('[WA-QR] Erro ao gerar QR Code base64:', err);
       }
     });
+  });
+
+  client.ev.on('messages.upsert', async ({ messages }) => {
+    try {
+      const message = messages[0];
+      if (!message.key.fromMe && message.message) {
+        const messageContent = message.message.conversation || 
+                             message.message.extendedTextMessage?.text || 
+                             message.message.imageMessage?.caption || 
+                             '';
+        
+        const senderNumber = message.key.remoteJid.split('@')[0];
+        const chatbot = getChatbot(senderNumber);
+
+        if (chatbot && chatbot.isActive) {
+          const response = await mistralService.generateResponse(messageContent, chatbot.personality);
+          await client.sendMessage(message.key.remoteJid, { text: response });
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao processar mensagem:', error);
+    }
   });
 
   return client;
@@ -363,6 +391,54 @@ app.delete('/api/whatsapp/session/:deviceId', (req, res) => {
     connections.delete(deviceId);
     return res.json({ message: 'Sessão deletada com sucesso' });
   });
+});
+
+// Adicionar novas rotas para gerenciar chatbots
+app.post('/api/chatbots', (req, res) => {
+  const { phoneNumber, name, personality } = req.body;
+  
+  if (!phoneNumber || !name || !personality) {
+    return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+  }
+
+  setChatbot(phoneNumber, { name, personality });
+  res.json({ message: 'Chatbot configurado com sucesso' });
+});
+
+app.delete('/api/chatbots/:phoneNumber', (req, res) => {
+  const { phoneNumber } = req.params;
+  removeChatbot(phoneNumber);
+  res.json({ message: 'Chatbot removido com sucesso' });
+});
+
+app.patch('/api/chatbots/:phoneNumber/toggle', (req, res) => {
+  const { phoneNumber } = req.params;
+  const { isActive } = req.body;
+  
+  toggleChatbot(phoneNumber, isActive);
+  res.json({ message: `Chatbot ${isActive ? 'ativado' : 'desativado'} com sucesso` });
+});
+
+app.get('/api/chatbots', (req, res) => {
+  const chatbots = listChatbots();
+  res.json(chatbots);
+});
+
+// Rota para listar agentes da Mistral via proxy seguro
+app.get('/api/mistral/agents', async (req, res) => {
+  try {
+    const response = await axios.get('https://api.mistral.ai/v1/agents', {
+      headers: {
+        'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+    res.json(response.data);
+  } catch (error) {
+    console.error('Erro ao buscar agentes da Mistral:', error?.response?.data || error.message);
+    res.status(500).json({ error: 'Erro ao buscar agentes da Mistral' });
+  }
 });
 
 // Rota para servir o frontend em todas as outras rotas
