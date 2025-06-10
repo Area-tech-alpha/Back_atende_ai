@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, ChevronDown, Loader2, ArrowUpRight } from 'lucide-react';
+import { Plus, Search, Filter, ChevronDown, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -229,44 +229,6 @@ const Campaigns = () => {
               Criar Nova Campanha
             </button>
           </div>
-        )}
-      </div>
-
-      <div className="flex justify-between mt-4 pt-4 border-t border-secondary-dark">
-        <button
-          className="text-accent/60 text-sm font-medium hover:text-primary transition-colors duration-200 flex items-center"
-          onClick={() => setShowDetails(true)}
-        >
-          <ArrowUpRight size={16} className="mr-1" />
-          Ver Detalhes
-        </button>
-        {(campaign.status === 'Completed' || campaign.status === 'Draft') && (
-          <button
-            className="text-accent/60 text-sm font-medium hover:text-primary transition-colors duration-200 ml-2"
-            onClick={() => navigate('/campaigns/new', { state: { reuseCampaign: reuseCampaign || campaign } })}
-          >
-            Reutilizar
-          </button>
-        )}
-        {campaign.status === 'In Progress' && (
-          <button
-            className="text-red-500 text-sm font-medium hover:text-red-700 transition-colors duration-200 ml-2"
-            onClick={async () => {
-              try {
-                const { error } = await supabase
-                  .from('campanhas')
-                  .update({ status: 'Paused' })
-                  .eq('id', campaign.id);
-                if (error) throw error;
-                setCampaigns(prev => prev.map(c => c.id === campaign.id ? { ...c, status: 'Paused' } : c));
-              } catch (error) {
-                console.error('Erro ao pausar campanha:', error);
-                alert('Erro ao pausar campanha. Por favor, tente novamente.');
-              }
-            }}
-          >
-            Pausar
-          </button>
         )}
       </div>
     </div>
