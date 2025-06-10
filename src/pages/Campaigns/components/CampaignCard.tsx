@@ -2,12 +2,13 @@ import React from 'react';
 import { Calendar, BarChart2, ArrowUpRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CampaignDetailsModal from './CampaignDetailsModal';
+import { supabase } from '../../lib/supabase';
 
 interface Campaign {
   id: number;
   name: string;
   description: string;
-  status: 'Completed' | 'In Progress' | 'Scheduled' | 'Draft';
+  status: 'Completed' | 'In Progress' | 'Scheduled' | 'Draft' | 'Paused';
   sentCount: number;
   deliveredCount: number;
   readCount: number;
@@ -37,6 +38,8 @@ const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, reuseCampaign }) 
         return 'bg-blue-100 text-blue-700';
       case 'Draft':
         return 'bg-zinc-200 text-zinc-600';
+      case 'Paused':
+        return 'bg-gray-100 text-gray-700';
       default:
         return 'bg-zinc-200 text-zinc-600';
     }
@@ -69,7 +72,8 @@ const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, reuseCampaign }) 
         <span className={`px-3 py-1.5 inline-flex text-xs leading-5 font-semibold rounded-lg ${getStatusStyle(campaign.status)}`}>
           {campaign.status === 'Completed' ? 'Concluída' :
            campaign.status === 'In Progress' ? 'Em Andamento' :
-           campaign.status === 'Scheduled' ? 'Agendada' : 'Rascunho'}
+           campaign.status === 'Scheduled' ? 'Agendada' :
+           campaign.status === 'Paused' ? 'Pausada' : 'Rascunho'}
         </span>
       </div>
       <p className="text-sm text-accent/60 mb-4 line-clamp-2">{campaign.description}</p>
@@ -109,9 +113,30 @@ const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, reuseCampaign }) 
         {(campaign.status === 'Completed' || campaign.status === 'Draft') && (
           <button
             className="text-accent/60 text-sm font-medium hover:text-primary transition-colors duration-200 ml-2"
-            onClick={() => navigate('/campaigns/new', { state: { reuseCampaign: reuseCampaign || campaign } })}
+            onClick={() => navigate('/campaigns/new', { state: { reuseCampaign: campaign } })}
           >
             Reutilizar
+          </button>
+        )}
+        {campaign.status === 'In Progress' && (
+          <button
+            className="text-red-500 text-sm font-medium hover:text-red-700 transition-colors duration-200 ml-2"
+            onClick={async () => {
+              try {
+                const { error } = await supabase
+                  .from('campanhas')
+                  .update({ status: 'Paused' })
+                  .eq('id', campaign.id);
+                if (error) throw error;
+                // Atualizar o status localmente
+                campaign.status = 'Paused';
+              } catch (error) {
+                console.error('Erro ao pausar campanha:', error);
+                alert('Erro ao pausar campanha. Por favor, tente novamente.');
+              }
+            }}
+          >
+            Pausar
           </button>
         )}
       </div>
