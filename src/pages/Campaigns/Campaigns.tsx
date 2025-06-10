@@ -26,37 +26,23 @@ const Campaigns = () => {
   const [statusFilter, setStatusFilter] = useState('All');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDetails, setShowDetails] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
 
   useEffect(() => {
-    fetchCampaigns();
+    if (user) {
+      fetchCampaigns();
+    }
   }, [user]);
 
   const fetchCampaigns = async () => {
     try {
       if (!user) return;
 
-      // First get all contacts related to the user
-      const { data: contactsData, error: contactsError } = await supabase
-        .from('contato_evolution')
-        .select('id')
-        .eq('relacao_login', user.id);
-
-      if (contactsError) throw contactsError;
-
-      if (!contactsData?.length) {
-        setLoading(false);
-        return;
-      }
-
-      const contactIds = contactsData.map(contact => contact.id);
-
-      // Then get all messages for these contacts
       const { data: messagesData, error: messagesError } = await supabase
         .from('mensagem_evolution')
         .select('*')
-        .in('contatos', contactIds)
         .order('created_at', { ascending: false });
 
       if (messagesError) throw messagesError;
@@ -64,11 +50,13 @@ const Campaigns = () => {
       // Buscar dados de envio_evolution para cada campanha
       const campaignIds = messagesData.map(msg => msg.id);
       let envioStats: Record<number, { sent: number; delivered: number; read: number; error: number }> = {};
+      
       if (campaignIds.length > 0) {
         const { data: envios } = await supabase
           .from('envio_evolution')
           .select('id_mensagem, status')
           .in('id_mensagem', campaignIds);
+          
         if (envios) {
           for (const id of campaignIds) {
             const enviosCampanha = envios.filter(e => e.id_mensagem === id);
@@ -84,7 +72,7 @@ const Campaigns = () => {
 
       const formattedCampaigns = messagesData.map(message => ({
         id: message.id,
-        name: message.name || `Campaign ${message.id}`,
+        name: message.name || `Campanha ${message.id}`,
         texto: message.texto,
         imagem: message.imagem,
         data_de_envio: message.data_de_envio,
