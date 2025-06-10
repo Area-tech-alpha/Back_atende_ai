@@ -196,23 +196,23 @@ const Campaigns = () => {
       {/* Campaign list */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCampaigns.length > 0 ? (
-          filteredCampaigns.map(campaign => (
+          filteredCampaigns.map(c => (
             <CampaignCard 
-              key={campaign.id} 
+              key={c.id} 
               campaign={{
-                id: campaign.id,
-                name: campaign.name,
-                description: campaign.texto,
-                status: campaign.status,
-                sentCount: campaign.sentCount ?? 0,
-                deliveredCount: campaign.deliveredCount ?? 0,
-                readCount: campaign.readCount ?? 0,
-                errorCount: campaign.errorCount ?? 0,
-                date: campaign.data_de_envio || campaign.created_at,
-                template: campaign.imagem ? 'Com Imagem' : 'Apenas Texto',
-                nome_da_instancia: campaign.nome_da_instancia
+                id: c.id,
+                name: c.name,
+                description: c.texto,
+                status: c.status,
+                sentCount: c.sentCount ?? 0,
+                deliveredCount: c.deliveredCount ?? 0,
+                readCount: c.readCount ?? 0,
+                errorCount: c.errorCount ?? 0,
+                date: c.data_de_envio || c.created_at,
+                template: c.imagem ? 'Com Imagem' : 'Apenas Texto',
+                nome_da_instancia: c.nome_da_instancia
               }}
-              reuseCampaign={campaign}
+              reuseCampaign={c}
             />
           ))
         ) : (
@@ -240,15 +240,15 @@ const Campaigns = () => {
           <ArrowUpRight size={16} className="mr-1" />
           Ver Detalhes
         </button>
-        {(campaign.status === 'Completed' || campaign.status === 'Draft') && (
+        {(c.status === 'Completed' || c.status === 'Draft') && (
           <button
             className="text-accent/60 text-sm font-medium hover:text-primary transition-colors duration-200 ml-2"
-            onClick={() => navigate('/campaigns/new', { state: { reuseCampaign: reuseCampaign || campaign } })}
+            onClick={() => navigate('/campaigns/new', { state: { reuseCampaign: c } })}
           >
             Reutilizar
           </button>
         )}
-        {campaign.status === 'In Progress' && (
+        {c.status === 'In Progress' && (
           <button
             className="text-red-500 text-sm font-medium hover:text-red-700 transition-colors duration-200 ml-2"
             onClick={async () => {
@@ -256,9 +256,9 @@ const Campaigns = () => {
                 const { error } = await supabase
                   .from('campanhas')
                   .update({ status: 'Paused' })
-                  .eq('id', campaign.id);
+                  .eq('id', c.id);
                 if (error) throw error;
-                setCampaigns(prev => prev.map(c => c.id === campaign.id ? { ...c, status: 'Paused' } : c));
+                setCampaigns(prev => prev.map(c => c.id === c.id ? { ...c, status: 'Paused' } : c));
               } catch (error) {
                 console.error('Erro ao pausar campanha:', error);
                 alert('Erro ao pausar campanha. Por favor, tente novamente.');
