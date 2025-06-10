@@ -182,10 +182,6 @@ const NewCampaign = () => {
 
   const handleSubmit = async (e: React.FormEvent, draft = false) => {
     e.preventDefault();
-    if (messageDelay < 30) {
-      alert('O intervalo entre mensagens deve ser de pelo menos 30 segundos.');
-      return;
-    }
     setIsLoading(true);
     setError('');
 
@@ -306,13 +302,7 @@ const NewCampaign = () => {
         }
       }
 
-      if (!draft) {
-        alert('Campanha criada com sucesso!');
-        navigate('/campaigns');
-      } else {
-        alert('Rascunho salvo com sucesso!');
-        navigate('/campaigns');
-      }
+      navigate('/campaigns');
     } catch (err) {
       console.error('Error creating campaign:', err);
       setError(err instanceof Error ? err.message : 'Failed to create campaign. Please try again.');

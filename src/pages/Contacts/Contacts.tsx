@@ -307,9 +307,9 @@ const Contacts = () => {
                 {list.name || `Lista ${list.id}`}
               </h3>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-accent/60">
-                  {list.contatos.length} contatos
-                </span>
+              <span className="text-sm text-accent/60">
+                {list.contatos.length} contatos
+              </span>
                 <button
                   className="text-red-500 hover:text-red-700 ml-2 text-xs font-medium"
                   title="Excluir lista"

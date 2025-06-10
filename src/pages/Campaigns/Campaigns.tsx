@@ -26,23 +26,37 @@ const Campaigns = () => {
   const [statusFilter, setStatusFilter] = useState('All');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showDetails, setShowDetails] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
 
   useEffect(() => {
-    if (user) {
-      fetchCampaigns();
-    }
+    fetchCampaigns();
   }, [user]);
 
   const fetchCampaigns = async () => {
     try {
       if (!user) return;
 
+      // First get all contacts related to the user
+      const { data: contactsData, error: contactsError } = await supabase
+        .from('contato_evolution')
+        .select('id')
+        .eq('relacao_login', user.id);
+
+      if (contactsError) throw contactsError;
+
+      if (!contactsData?.length) {
+        setLoading(false);
+        return;
+      }
+
+      const contactIds = contactsData.map(contact => contact.id);
+
+      // Then get all messages for these contacts
       const { data: messagesData, error: messagesError } = await supabase
         .from('mensagem_evolution')
         .select('*')
+        .in('contatos', contactIds)
         .order('created_at', { ascending: false });
 
       if (messagesError) throw messagesError;
@@ -50,13 +64,11 @@ const Campaigns = () => {
       // Buscar dados de envio_evolution para cada campanha
       const campaignIds = messagesData.map(msg => msg.id);
       let envioStats: Record<number, { sent: number; delivered: number; read: number; error: number }> = {};
-      
       if (campaignIds.length > 0) {
         const { data: envios } = await supabase
           .from('envio_evolution')
           .select('id_mensagem, status')
           .in('id_mensagem', campaignIds);
-          
         if (envios) {
           for (const id of campaignIds) {
             const enviosCampanha = envios.filter(e => e.id_mensagem === id);
@@ -72,7 +84,7 @@ const Campaigns = () => {
 
       const formattedCampaigns = messagesData.map(message => ({
         id: message.id,
-        name: message.name || `Campanha ${message.id}`,
+        name: message.name || `Campaign ${message.id}`,
         texto: message.texto,
         imagem: message.imagem,
         data_de_envio: message.data_de_envio,
@@ -184,23 +196,23 @@ const Campaigns = () => {
       {/* Campaign list */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCampaigns.length > 0 ? (
-          filteredCampaigns.map(c => (
+          filteredCampaigns.map(campaign => (
             <CampaignCard 
-              key={c.id} 
+              key={campaign.id} 
               campaign={{
-                id: c.id,
-                name: c.name,
-                description: c.texto,
-                status: c.status,
-                sentCount: c.sentCount ?? 0,
-                deliveredCount: c.deliveredCount ?? 0,
-                readCount: c.readCount ?? 0,
-                errorCount: c.errorCount ?? 0,
-                date: c.data_de_envio || c.created_at,
-                template: c.imagem ? 'Com Imagem' : 'Apenas Texto',
-                nome_da_instancia: c.nome_da_instancia
+                id: campaign.id,
+                name: campaign.name,
+                description: campaign.texto,
+                status: campaign.status,
+                sentCount: campaign.sentCount ?? 0,
+                deliveredCount: campaign.deliveredCount ?? 0,
+                readCount: campaign.readCount ?? 0,
+                errorCount: campaign.errorCount ?? 0,
+                date: campaign.data_de_envio || campaign.created_at,
+                template: campaign.imagem ? 'Com Imagem' : 'Apenas Texto',
+                nome_da_instancia: campaign.nome_da_instancia
               }}
-              reuseCampaign={c}
+              reuseCampaign={campaign}
             />
           ))
         ) : (
@@ -228,15 +240,15 @@ const Campaigns = () => {
           <ArrowUpRight size={16} className="mr-1" />
           Ver Detalhes
         </button>
-        {(c.status === 'Completed' || c.status === 'Draft') && (
+        {(campaign.status === 'Completed' || campaign.status === 'Draft') && (
           <button
             className="text-accent/60 text-sm font-medium hover:text-primary transition-colors duration-200 ml-2"
-            onClick={() => navigate('/campaigns/new', { state: { reuseCampaign: c } })}
+            onClick={() => navigate('/campaigns/new', { state: { reuseCampaign: reuseCampaign || campaign } })}
           >
             Reutilizar
           </button>
         )}
-        {c.status === 'In Progress' && (
+        {campaign.status === 'In Progress' && (
           <button
             className="text-red-500 text-sm font-medium hover:text-red-700 transition-colors duration-200 ml-2"
             onClick={async () => {
@@ -244,9 +256,9 @@ const Campaigns = () => {
                 const { error } = await supabase
                   .from('campanhas')
                   .update({ status: 'Paused' })
-                  .eq('id', c.id);
+                  .eq('id', campaign.id);
                 if (error) throw error;
-                setCampaigns(prev => prev.map(c => c.id === c.id ? { ...c, status: 'Paused' } : c));
+                setCampaigns(prev => prev.map(c => c.id === campaign.id ? { ...c, status: 'Paused' } : c));
               } catch (error) {
                 console.error('Erro ao pausar campanha:', error);
                 alert('Erro ao pausar campanha. Por favor, tente novamente.');
