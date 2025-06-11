@@ -180,6 +180,47 @@ const NewCampaign = () => {
     }
   };
 
+  const sendMessageWithRetry = async (deviceId: string, number: string, message: string, imagemUrl?: string, maxRetries = 3) => {
+    let lastError = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(API_ENDPOINTS.whatsapp.send, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            deviceId,
+            number,
+            message,
+            imagemUrl
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        return { success: true };
+      } catch (error) {
+        lastError = error;
+        console.error(`[TENTATIVA ${attempt}/${maxRetries}] Erro ao enviar mensagem para ${number}:`, error);
+        
+        // Aguarda um tempo crescente entre as tentativas (1s, 2s, 4s)
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 1000));
+        }
+      }
+    }
+
+    return { 
+      success: false, 
+      error: lastError instanceof Error ? lastError.message : String(lastError)
+    };
+  };
+
   const handleSubmit = async (e: React.FormEvent, draft = false) => {
     e.preventDefault();
     setIsLoading(true);
@@ -252,6 +293,9 @@ const NewCampaign = () => {
       // If immediate sending, make API call to Evolution
       if (!draft && isImmediate) {
         const errors: string[] = [];
+        let successCount = 0;
+        let errorCount = 0;
+
         for (const [index, contact] of contacts.entries()) {
           // Verifica se já existe um envio para este contato nesta campanha
           const { data: existingSend } = await supabase
@@ -266,52 +310,46 @@ const NewCampaign = () => {
             continue;
           }
 
-          let envioStatus = 'success';
-          let envioErro = null;
-          try {
-            const formattedPhone = formatPhoneNumber(contact.phone);
-            if (index > 0 && messageDelay > 0) {
-              await new Promise(resolve => setTimeout(resolve, messageDelay * 1000));
-            }
-            const response = await fetch(API_ENDPOINTS.whatsapp.send, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                deviceId: selectedDevice,
-                number: formattedPhone,
-                message: message,
-                imagemUrl: selectedImage ? imageUrl : undefined
-              })
-            });
-            if (!response.ok) {
-              const errorText = await response.text();
-              envioStatus = 'error';
-              envioErro = `HTTP ${response.status}: ${errorText}`;
-              throw new Error(envioErro);
-            }
-          } catch (error) {
-            envioStatus = 'error';
-            envioErro = error instanceof Error ? error.message : String(error);
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            errors.push(`Failed to send message to ${contact.phone}: ${errorMessage}`);
-            console.error(`Error sending message to ${contact.phone}:`, error);
-          } finally {
-            await supabase
-              .from('envio_evolution')
-              .insert([
-                {
-                  id_mensagem: messageData?.id,
-                  contato: contact.phone,
-                  status: envioStatus,
-                  erro: envioErro
-                }
-              ]);
+          if (index > 0 && messageDelay > 0) {
+            await new Promise(resolve => setTimeout(resolve, messageDelay * 1000));
+          }
+
+          const formattedPhone = formatPhoneNumber(contact.phone);
+          const result = await sendMessageWithRetry(
+            selectedDevice,
+            formattedPhone,
+            message,
+            selectedImage ? imageUrl : undefined
+          );
+
+          await supabase
+            .from('envio_evolution')
+            .insert([{
+              id_mensagem: messageData?.id,
+              contato: contact.phone,
+              status: result.success ? 'success' : 'error',
+              erro: result.success ? null : result.error
+            }]);
+
+          if (result.success) {
+            successCount++;
+          } else {
+            errorCount++;
+            errors.push(`Falha ao enviar mensagem para ${contact.phone}: ${result.error}`);
           }
         }
+
+        // Atualiza o status da campanha baseado no resultado dos envios
+        const status = errorCount === 0 ? 'Completed' : 
+                      successCount === 0 ? 'Failed' : 'Partially Completed';
+        
+        await supabase
+          .from('mensagem_evolution')
+          .update({ status })
+          .eq('id', messageData?.id);
+
         if (errors.length > 0) {
-          throw new Error(`Failed to send some messages:\n${errors.join('\n')}`);
+          throw new Error(`Falha ao enviar algumas mensagens:\n${errors.join('\n')}`);
         }
       }
 
