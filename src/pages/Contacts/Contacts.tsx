@@ -392,7 +392,7 @@ const Contacts = () => {
                 </button>
                 <a
                   href="/Modelo.csv"
-                  download
+                  download="Modelo.csv"
                   className="btn-primary w-full mb-2 text-center flex items-center justify-center"
                   style={{ minWidth: 0 }}
                 >

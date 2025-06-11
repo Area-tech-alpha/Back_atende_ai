@@ -253,6 +253,19 @@ const NewCampaign = () => {
       if (!draft && isImmediate) {
         const errors: string[] = [];
         for (const [index, contact] of contacts.entries()) {
+          // Verifica se já existe um envio para este contato nesta campanha
+          const { data: existingSend } = await supabase
+            .from('envio_evolution')
+            .select('id')
+            .eq('id_mensagem', messageData?.id)
+            .eq('contato', contact.phone)
+            .single();
+
+          if (existingSend) {
+            console.log(`[SKIP] Envio duplicado detectado para ${contact.phone} na campanha ${messageData?.id}`);
+            continue;
+          }
+
           let envioStatus = 'success';
           let envioErro = null;
           try {

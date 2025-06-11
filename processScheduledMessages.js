@@ -14,6 +14,17 @@ function formatPhoneNumber(phone) {
   return cleaned;
 }
 
+async function checkDuplicateSend(messageId, phone) {
+  const { data: existingSend } = await supabase
+    .from('envio_evolution')
+    .select('id')
+    .eq('id_mensagem', messageId)
+    .eq('contato', phone)
+    .single();
+  
+  return !!existingSend;
+}
+
 async function processScheduledMessages() {
   const now = new Date().toISOString();
   const { data: messages, error } = await supabase
@@ -43,6 +54,13 @@ async function processScheduledMessages() {
       const contatos = JSON.parse(contatosData.contatos);
 
       for (const contact of contatos) {
+        // Verifica se já existe um envio para este contato nesta campanha
+        const isDuplicate = await checkDuplicateSend(msg.id, contact.phone);
+        if (isDuplicate) {
+          console.log(`[SKIP] Envio duplicado detectado para ${contact.phone} na campanha ${msg.id}`);
+          continue;
+        }
+
         const formattedPhone = formatPhoneNumber(contact.phone);
         let envioStatus = 'success';
         let envioErro = null;
