@@ -221,6 +221,20 @@ const NewCampaign = () => {
     };
   };
 
+  // Função para remover números duplicados de uma lista de contatos
+  const removeDuplicateContacts = (contatos: Contact[]) => {
+    const uniqueContacts = new Map<string, Contact>();
+    
+    for (const contact of contatos) {
+      const formattedPhone = formatPhoneNumber(contact.phone);
+      if (!uniqueContacts.has(formattedPhone)) {
+        uniqueContacts.set(formattedPhone, contact);
+      }
+    }
+    
+    return Array.from(uniqueContacts.values());
+  };
+
   const handleSubmit = async (e: React.FormEvent, draft = false) => {
     e.preventDefault();
     setIsLoading(true);
@@ -296,7 +310,13 @@ const NewCampaign = () => {
         let successCount = 0;
         let errorCount = 0;
 
-        for (const [index, contact] of contacts.entries()) {
+        // Remove números duplicados da lista de contatos
+        const uniqueContacts = removeDuplicateContacts(contacts);
+        if (uniqueContacts.length < contacts.length) {
+          console.log(`ℹ️ Removidos ${contacts.length - uniqueContacts.length} números duplicados da campanha`);
+        }
+
+        for (const [index, contact] of uniqueContacts.entries()) {
           // Verifica se já existe um envio para este contato nesta campanha
           const { data: existingSend } = await supabase
             .from('envio_evolution')
@@ -306,7 +326,7 @@ const NewCampaign = () => {
             .single();
 
           if (existingSend) {
-            console.log(`[SKIP] Envio duplicado detectado para ${contact.phone} na campanha ${messageData?.id}`);
+            console.log(`⚠️ Envio duplicado detectado para ${contact.phone} na campanha ${messageData?.id}`);
             continue;
           }
 

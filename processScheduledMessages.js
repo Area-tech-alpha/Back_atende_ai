@@ -25,7 +25,55 @@ async function checkDuplicateSend(messageId, phone) {
   return !!existingSend;
 }
 
+async function getActiveDevice(deviceId) {
+  try {
+    // Primeiro tenta buscar a instância pelo nome
+    const { data: instanceData, error: instanceError } = await supabase
+      .from('evolution')
+      .select('url, apikey')
+      .eq('nome_da_instancia', deviceId)
+      .single();
+
+    if (instanceError || !instanceData) {
+      console.log(`[${getCurrentDateTime()}] ⚠️ Instância ${deviceId} não encontrada no banco de dados`);
+      return null;
+    }
+
+    // Verifica se a instância está ativa
+    const response = await fetch(`https://${instanceData.url}/instance/connectionState/${deviceId}`, {
+      headers: {
+        'apikey': instanceData.apikey
+      }
+    });
+
+    if (!response.ok) {
+      console.log(`[${getCurrentDateTime()}] ⚠️ Instância ${deviceId} não está ativa`);
+      return null;
+    }
+
+    const state = await response.json();
+    if (state.state !== 'open') {
+      console.log(`[${getCurrentDateTime()}] ⚠️ Instância ${deviceId} não está conectada (estado: ${state.state})`);
+      return null;
+    }
+
+    return deviceId;
+  } catch (error) {
+    console.error(`[${getCurrentDateTime()}] ❌ Erro ao verificar instância ${deviceId}:`, error);
+    return null;
+  }
+}
+
 async function sendMessageWithRetry(deviceId, number, message, imagemUrl, maxRetries = 3) {
+  // Verifica se o dispositivo está ativo antes de tentar enviar
+  const activeDevice = await getActiveDevice(deviceId);
+  if (!activeDevice) {
+    return { 
+      success: false, 
+      error: `Dispositivo ${deviceId} não está disponível ou não está conectado`
+    };
+  }
+
   let lastError = null;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -36,7 +84,7 @@ async function sendMessageWithRetry(deviceId, number, message, imagemUrl, maxRet
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          deviceId,
+          deviceId: activeDevice,
           number,
           message,
           imagemUrl
@@ -51,7 +99,7 @@ async function sendMessageWithRetry(deviceId, number, message, imagemUrl, maxRet
       return { success: true };
     } catch (error) {
       lastError = error;
-      console.error(`[TENTATIVA ${attempt}/${maxRetries}] Erro ao enviar mensagem para ${number}:`, error);
+      console.error(`[${getCurrentDateTime()}] [TENTATIVA ${attempt}/${maxRetries}] Erro ao enviar mensagem para ${number}:`, error);
       
       // Aguarda um tempo crescente entre as tentativas (1s, 2s, 4s)
       if (attempt < maxRetries) {
@@ -77,6 +125,20 @@ function getCurrentDateTime() {
   });
 }
 
+// Função para remover números duplicados de uma lista de contatos
+function removeDuplicateContacts(contatos) {
+  const uniqueContacts = new Map();
+  
+  for (const contact of contatos) {
+    const formattedPhone = formatPhoneNumber(contact.phone);
+    if (!uniqueContacts.has(formattedPhone)) {
+      uniqueContacts.set(formattedPhone, contact);
+    }
+  }
+  
+  return Array.from(uniqueContacts.values());
+}
+
 async function processScheduledMessages() {
   console.log(`\n[${getCurrentDateTime()}] 🔍 Verificando mensagens agendadas...`);
   
@@ -88,7 +150,7 @@ async function processScheduledMessages() {
     .or('status.is.null,status.eq.Scheduled');
 
   if (error) {
-    console.error('❌ Erro ao buscar mensagens agendadas:', error);
+    console.error(`[${getCurrentDateTime()}] ❌ Erro ao buscar mensagens agendadas:`, error);
     return;
   }
 
@@ -103,6 +165,13 @@ async function processScheduledMessages() {
     console.log(`\n[${getCurrentDateTime()}] 📝 Processando campanha ${msg.id} - "${msg.name || 'Sem nome'}"`);
     
     try {
+      // Verifica se o dispositivo está disponível antes de processar a campanha
+      const activeDevice = await getActiveDevice(msg.device_id);
+      if (!activeDevice) {
+        console.log(`[${getCurrentDateTime()}] ⚠️ Pulando campanha ${msg.id} - dispositivo ${msg.device_id} não está disponível`);
+        continue;
+      }
+
       const { data: contatosData, error: contatosError } = await supabase
         .from('contato_evolution')
         .select('*')
@@ -110,13 +179,21 @@ async function processScheduledMessages() {
         .single();
       
       if (contatosError) throw contatosError;
+      
+      // Remove números duplicados da lista de contatos
       const contatos = JSON.parse(contatosData.contatos);
-      console.log(`[${getCurrentDateTime()}] 👥 Campanha possui ${contatos.length} contatos para envio.`);
+      const uniqueContatos = removeDuplicateContacts(contatos);
+      
+      if (uniqueContatos.length < contatos.length) {
+        console.log(`[${getCurrentDateTime()}] ℹ️ Removidos ${contatos.length - uniqueContatos.length} números duplicados da campanha ${msg.id}`);
+      }
+      
+      console.log(`[${getCurrentDateTime()}] 👥 Campanha possui ${uniqueContatos.length} contatos únicos para envio.`);
 
       let successCount = 0;
       let errorCount = 0;
 
-      for (const contact of contatos) {
+      for (const contact of uniqueContatos) {
         // Verifica se já existe um envio para este contato nesta campanha
         const isDuplicate = await checkDuplicateSend(msg.id, contact.phone);
         if (isDuplicate) {
