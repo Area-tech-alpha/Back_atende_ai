@@ -10,17 +10,9 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 function formatPhoneNumber(phone) {
   let cleaned = phone.replace(/\D/g, '');
-  
-  // Garante que começa com 55
   if (!cleaned.startsWith('55')) {
     cleaned = '55' + cleaned;
   }
-  
-  // Se tiver 13 dígitos (55 + DDD + 9 + número), remove o 9
-  if (cleaned.length === 13 && cleaned.startsWith('55')) {
-    cleaned = cleaned.slice(0, 5) + cleaned.slice(6);
-  }
-  
   return cleaned;
 }
 
