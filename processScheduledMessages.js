@@ -9,10 +9,20 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 function formatPhoneNumber(phone) {
+  // Remove todos os caracteres não numéricos
   let cleaned = phone.replace(/\D/g, '');
+  
+  // Se não começar com 55, adiciona
   if (!cleaned.startsWith('55')) {
     cleaned = '55' + cleaned;
   }
+  
+  // Remove o nono dígito se for celular do Brasil (ex: 5561985515084 vira 556185515084)
+  if (cleaned.length === 13 && cleaned.startsWith('55')) {
+    // 55 + DDD (2) + 9 + número (8)
+    cleaned = cleaned.slice(0, 5) + cleaned.slice(6);
+  }
+  
   return cleaned;
 }
 
