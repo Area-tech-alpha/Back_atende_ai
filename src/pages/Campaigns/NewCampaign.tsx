@@ -16,20 +16,20 @@ interface ContactList {
   contatos: Contact[];
 }
 
-const formatPhoneNumber = (phone: string): string => {
-  // Remove qualquer caractere não numérico
+// Função para formatar número de telefone
+const formatPhoneNumber = (phone: string) => {
   let cleaned = phone.replace(/\D/g, '');
-
+  
   // Garante que começa com 55
   if (!cleaned.startsWith('55')) {
     cleaned = '55' + cleaned;
   }
-
-  // Se tiver 13 dígitos (ex: 5561985515084), remove o nono dígito (primeiro após o DDD)
-  if (cleaned.length === 13) {
+  
+  // Se tiver 13 dígitos (55 + DDD + 9 + número), remove o 9
+  if (cleaned.length === 13 && cleaned.startsWith('55')) {
     cleaned = cleaned.slice(0, 5) + cleaned.slice(6);
   }
-
+  
   return cleaned;
 };
 
@@ -306,6 +306,10 @@ const NewCampaign = () => {
 
       // If immediate sending, make API call to Evolution
       if (!draft && isImmediate) {
+        if (messageDelay < 30) {
+          alert('O intervalo entre mensagens deve ser no mínimo 30 segundos.');
+          return;
+        }
         const errors: string[] = [];
         let successCount = 0;
         let errorCount = 0;
@@ -601,19 +605,19 @@ const NewCampaign = () => {
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-sm font-medium text-accent mb-2">
-                    Intervalo entre mensagens (segundos)
-                  </label>
+                <div className="mb-4">
+                  <label className="block font-semibold mb-1">Intervalo entre mensagens (segundos)</label>
                   <input
                     type="number"
+                    min={30}
                     value={messageDelay}
-                    onChange={(e) => setMessageDelay(Number(e.target.value))}
-                    className="input"
-                    min="0"
-                    placeholder="0"
+                    onChange={e => {
+                      const value = Math.max(30, Number(e.target.value));
+                      setMessageDelay(value);
+                    }}
+                    className="input w-full"
                   />
-                  <span className="text-xs text-accent/60 mt-1 block">Recomendado: 60 segundos</span>
+                  <span className="text-xs text-accent/60">Recomendado: 60 segundos</span>
                 </div>
               </div>
             </div>
