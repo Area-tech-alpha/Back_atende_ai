@@ -1,5 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const fetch = require('node-fetch');
+const path = require('path');
+const fs = require('fs');
 
 
 const supabaseUrl = 'https://izmzxqzcsnaykofpcjjh.supabase.co';
@@ -27,33 +29,23 @@ async function checkDuplicateSend(messageId, phone) {
 
 async function getActiveDevice(deviceId) {
   try {
-    // Primeiro tenta buscar a instância pelo nome
-    const { data: instanceData, error: instanceError } = await supabase
-      .from('evolution')
-      .select('url, apikey')
-      .eq('nome_da_instancia', deviceId)
-      .single();
-
-    if (instanceError || !instanceData) {
-      console.log(`[${getCurrentDateTime()}] ⚠️ Instância ${deviceId} não encontrada no banco de dados`);
+    // Verifica se existe o diretório de autenticação
+    const authFolder = path.join(__dirname, 'auth', deviceId);
+    if (!fs.existsSync(authFolder)) {
+      console.log(`[${getCurrentDateTime()}] ⚠️ Diretório de autenticação não encontrado para ${deviceId}`);
       return null;
     }
 
     // Verifica se a instância está ativa
-    const response = await fetch(`https://${instanceData.url}/instance/connectionState/${deviceId}`, {
-      headers: {
-        'apikey': instanceData.apikey
-      }
-    });
-
+    const response = await fetch(`https://lionchat.tech/api/whatsapp/status/${deviceId}`);
     if (!response.ok) {
       console.log(`[${getCurrentDateTime()}] ⚠️ Instância ${deviceId} não está ativa`);
       return null;
     }
 
-    const state = await response.json();
-    if (state.state !== 'open') {
-      console.log(`[${getCurrentDateTime()}] ⚠️ Instância ${deviceId} não está conectada (estado: ${state.state})`);
+    const { status } = await response.json();
+    if (status !== 'connected') {
+      console.log(`[${getCurrentDateTime()}] ⚠️ Instância ${deviceId} não está conectada (estado: ${status})`);
       return null;
     }
 
