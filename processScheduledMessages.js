@@ -1,11 +1,29 @@
 const { createClient } = require('@supabase/supabase-js');
 const fetch = require('node-fetch');
-const { supabase } = require('./lib/supabase');
-const { checkDuplicateMessage, formatPhoneNumber } = require('./src/utils/messageUtils');
+
 
 const supabaseUrl = 'https://izmzxqzcsnaykofpcjjh.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6bXp4cXpjc25heWtvZnBjampoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMzc3MTM4NCwiZXhwIjoyMDQ5MzQ3Mzg0fQ.jMN_DdFGClZ5aQhZb1e9JuYYG4Cz6Obkt41O4K1523U';
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+function formatPhoneNumber(phone) {
+  let cleaned = phone.replace(/\D/g, '');
+  if (!cleaned.startsWith('55')) {
+    cleaned = '55' + cleaned;
+  }
+  return cleaned;
+}
+
+async function checkDuplicateSend(messageId, phone) {
+  const { data: existingSend } = await supabase
+    .from('envio_evolution')
+    .select('id')
+    .eq('id_mensagem', messageId)
+    .eq('contato', phone)
+    .single();
+  
+  return !!existingSend;
+}
 
 async function processScheduledMessages() {
   const now = new Date().toISOString();
@@ -26,11 +44,6 @@ async function processScheduledMessages() {
   }
 
   for (const msg of messages) {
-    // Ignorar campanhas pausadas ou já concluídas
-    if (msg.status === 'Paused' || msg.status === 'Completed') {
-      console.log(`[SKIP] Campanha ${msg.id} está pausada ou já concluída.`);
-      continue;
-    }
     try {
       const { data: contatosData, error: contatosError } = await supabase
         .from('contato_evolution')
@@ -42,7 +55,7 @@ async function processScheduledMessages() {
 
       for (const contact of contatos) {
         // Verifica se já existe um envio para este contato nesta campanha
-        const isDuplicate = await checkDuplicateMessage(msg.id, contact.phone);
+        const isDuplicate = await checkDuplicateSend(msg.id, contact.phone);
         if (isDuplicate) {
           console.log(`[SKIP] Envio duplicado detectado para ${contact.phone} na campanha ${msg.id}`);
           continue;
@@ -59,9 +72,9 @@ async function processScheduledMessages() {
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              deviceId: msg.device_id,
-              number: formattedPhone,
-              message: msg.texto,
+              deviceId: msg.device_id,     // numero da conexao cliente
+              number: formattedPhone,              // número formatado
+              message: msg.texto,                  // mensagem de texto
               imagemUrl: msg.imagem || null
             })
           });
@@ -89,6 +102,7 @@ async function processScheduledMessages() {
               erro: envioErro
             }]);
         }
+
       }
       // Marca como enviada apenas se todos os envios deram ok
       if (contatos.length > 0) {
@@ -129,6 +143,4 @@ setInterval(() => {
 }, 60 * 1000);
 
 // Executa imediatamente ao iniciar
-processScheduledMessages();
-
-module.exports = { processScheduledMessages }; 
+processScheduledMessages(); 

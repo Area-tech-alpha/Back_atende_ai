@@ -89,7 +89,7 @@ const Campaigns = () => {
         imagem: message.imagem,
         data_de_envio: message.data_de_envio,
         contatos: message.contatos,
-        status: message.status || determineStatus(message.data_de_envio),
+        status: message.status === 'Draft' ? 'Draft' : determineStatus(message.data_de_envio),
         created_at: message.created_at,
         sentCount: envioStats[message.id]?.sent || 0,
         deliveredCount: envioStats[message.id]?.delivered || 0,

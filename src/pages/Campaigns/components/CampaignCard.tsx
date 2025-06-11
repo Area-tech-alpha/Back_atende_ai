@@ -1,8 +1,7 @@
 import React from 'react';
-import { Calendar, BarChart2, ArrowUpRight, Pause, Trash2 } from 'lucide-react';
+import { Calendar, BarChart2, ArrowUpRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CampaignDetailsModal from './CampaignDetailsModal';
-import { supabase } from '../../../lib/supabase';
 
 interface Campaign {
   id: number;
@@ -63,26 +62,6 @@ const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, reuseCampaign }) 
     ((campaign.readCount / campaign.deliveredCount) * 100).toFixed(1) :
     '0';
 
-  // Handler para pausar campanha
-  const handlePause = async () => {
-    await supabase
-      .from('mensagem_evolution')
-      .update({ status: 'Paused' })
-      .eq('id', campaign.id);
-    window.location.reload();
-  };
-
-  // Handler para excluir campanha
-  const handleDelete = async () => {
-    if (window.confirm('Tem certeza que deseja excluir esta campanha?')) {
-      await supabase
-        .from('mensagem_evolution')
-        .delete()
-        .eq('id', campaign.id);
-      window.location.reload();
-    }
-  };
-
   return (
     <div className="card group hover:shadow-glow transition-all duration-300">
       <div className="flex justify-between items-start mb-3">
@@ -127,34 +106,14 @@ const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, reuseCampaign }) 
           <ArrowUpRight size={16} className="mr-1" />
           Ver Detalhes
         </button>
-        <div className="flex gap-2">
-          {(campaign.status === 'Scheduled' || campaign.status === 'In Progress') && (
-            <button
-              className="text-yellow-600 text-sm font-medium hover:text-yellow-800 transition-colors duration-200 flex items-center"
-              onClick={handlePause}
-              title="Pausar Campanha"
-            >
-              <Pause size={16} className="mr-1" /> Pausar
-            </button>
-          )}
-          {(campaign.status === 'Scheduled' || campaign.status === 'In Progress' || campaign.status === 'Draft') && (
-            <button
-              className="text-red-600 text-sm font-medium hover:text-red-800 transition-colors duration-200 flex items-center"
-              onClick={handleDelete}
-              title="Excluir Campanha"
-            >
-              <Trash2 size={16} className="mr-1" /> Excluir
-            </button>
-          )}
-          {(campaign.status === 'Completed' || campaign.status === 'Draft') && (
-            <button
-              className="text-accent/60 text-sm font-medium hover:text-primary transition-colors duration-200 ml-2"
-              onClick={() => navigate('/campaigns/new', { state: { reuseCampaign: reuseCampaign || campaign } })}
-            >
-              Reutilizar
-            </button>
-          )}
-        </div>
+        {(campaign.status === 'Completed' || campaign.status === 'Draft') && (
+          <button
+            className="text-accent/60 text-sm font-medium hover:text-primary transition-colors duration-200 ml-2"
+            onClick={() => navigate('/campaigns/new', { state: { reuseCampaign: reuseCampaign || campaign } })}
+          >
+            Reutilizar
+          </button>
+        )}
       </div>
 
       <CampaignDetailsModal
