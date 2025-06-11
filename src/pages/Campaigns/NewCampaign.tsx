@@ -4,6 +4,7 @@ import { Upload, Image as ImageIcon, X, Loader2, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { API_ENDPOINTS } from '../../config/api';
+import { checkDuplicateMessage, formatPhoneNumber } from '../../utils/messageUtils';
 
 interface Contact {
   name: string;
@@ -15,23 +16,6 @@ interface ContactList {
   name?: string;
   contatos: Contact[];
 }
-
-const formatPhoneNumber = (phone: string): string => {
-  // Remove qualquer caractere não numérico
-  let cleaned = phone.replace(/\D/g, '');
-
-  // Garante que começa com 55
-  if (!cleaned.startsWith('55')) {
-    cleaned = '55' + cleaned;
-  }
-
-  // Se tiver 13 dígitos (ex: 5561985515084), remove o nono dígito (primeiro após o DDD)
-  if (cleaned.length === 13) {
-    cleaned = cleaned.slice(0, 5) + cleaned.slice(6);
-  }
-
-  return cleaned;
-};
 
 const NewCampaign = () => {
   const { user } = useAuth();
@@ -254,15 +238,9 @@ const NewCampaign = () => {
         const errors: string[] = [];
         for (const [index, contact] of contacts.entries()) {
           // Verifica se já existe um envio para este contato nesta campanha
-          const { data: existingSend } = await supabase
-            .from('envio_evolution')
-            .select('id')
-            .eq('id_mensagem', messageData?.id)
-            .eq('contato', contact.phone)
-            .single();
-
-          if (existingSend) {
-            console.log(`[SKIP] Envio duplicado detectado para ${contact.phone} na campanha ${messageData?.id}`);
+          const isDuplicate = await checkDuplicateMessage(messageData.id, contact.phone);
+          if (isDuplicate) {
+            console.log(`[SKIP] Envio duplicado detectado para ${contact.phone} na campanha ${messageData.id}`);
             continue;
           }
 
@@ -270,8 +248,9 @@ const NewCampaign = () => {
           let envioErro = null;
           try {
             const formattedPhone = formatPhoneNumber(contact.phone);
-            if (index > 0 && messageDelay > 0) {
-              await new Promise(resolve => setTimeout(resolve, messageDelay * 1000));
+            const delay = Math.max(30, messageDelay);
+            if (index > 0 && delay > 0) {
+              await new Promise(resolve => setTimeout(resolve, delay * 1000));
             }
             const response = await fetch(API_ENDPOINTS.whatsapp.send, {
               method: 'POST',
@@ -550,12 +529,15 @@ const NewCampaign = () => {
                   <input
                     type="number"
                     value={messageDelay}
-                    onChange={(e) => setMessageDelay(Number(e.target.value))}
+                    onChange={(e) => {
+                      const value = Math.max(30, Number(e.target.value));
+                      setMessageDelay(value);
+                    }}
                     className="input"
-                    min="0"
-                    placeholder="0"
+                    min="30"
+                    placeholder="30"
                   />
-                  <span className="text-xs text-accent/60 mt-1 block">Recomendado: 60 segundos</span>
+                  <span className="text-xs text-accent/60 mt-1 block">Mínimo obrigatório: 30 segundos. Recomendado: 60 segundos</span>
                 </div>
               </div>
             </div>
