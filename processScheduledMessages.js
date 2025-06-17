@@ -194,13 +194,28 @@ async function processScheduledMessages() {
 
       let successCount = 0;
       let errorCount = 0;
+      const messageDelay = msg.delay || 60; // Usa o campo 'delay' configurado ou 60 segundos por padrão
 
-      for (const contact of uniqueContatos) {
+      console.log(`[${getCurrentDateTime()}] ⏱️ Intervalo configurado: ${messageDelay} segundos`);
+
+      for (const [index, contact] of uniqueContatos.entries()) {
         // Verifica se já existe um envio para este contato nesta campanha
-        const isDuplicate = await checkDuplicateSend(msg.id, contact.phone);
-        if (isDuplicate) {
+        const { data: existingSend } = await supabase
+          .from('envio_evolution')
+          .select('id')
+          .eq('id_mensagem', msg.id)
+          .eq('contato', contact.phone)
+          .single();
+
+        if (existingSend) {
           console.log(`[${getCurrentDateTime()}] ⚠️ Envio duplicado detectado para ${contact.phone} na campanha ${msg.id}`);
           continue;
+        }
+
+        // Aguarda o intervalo configurado entre as mensagens (exceto para a primeira)
+        if (index > 0 && messageDelay > 0) {
+          console.log(`[${getCurrentDateTime()}] ⏳ Aguardando ${messageDelay} segundos antes do próximo envio...`);
+          await new Promise(resolve => setTimeout(resolve, messageDelay * 1000));
         }
 
         const formattedPhone = formatPhoneNumber(contact.phone);
