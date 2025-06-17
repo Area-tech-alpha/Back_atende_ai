@@ -17,10 +17,12 @@ function formatPhoneNumber(phone) {
     cleaned = '55' + cleaned;
   }
   
-  // Remove o nono dígito se for celular do Brasil (ex: 5561985515084 vira 556185515084)
+  // Se o número tiver 13 dígitos (55 + DDD + 9 + número), remove o 9
+  // Mantém os 4 primeiros (55 + DDD) e os últimos 8 dígitos
   if (cleaned.length === 13 && cleaned.startsWith('55')) {
     // 55 + DDD (2) + 9 + número (8)
-    cleaned = cleaned.slice(0, 5) + cleaned.slice(6);
+    // Queremos: 55 + DDD (2) + número (8)
+    cleaned = cleaned.slice(0, 4) + cleaned.slice(5);
   }
   
   return cleaned;

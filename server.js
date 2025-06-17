@@ -49,10 +49,12 @@ function formatPhoneNumber(phone) {
     cleaned = '55' + cleaned;
   }
   
-  // Remove o nono dígito se for celular do Brasil (ex: 5561985515084 vira 556185515084)
+  // Se o número tiver 13 dígitos (55 + DDD + 9 + número), remove o 9
+  // Mantém os 4 primeiros (55 + DDD) e os últimos 8 dígitos
   if (cleaned.length === 13 && cleaned.startsWith('55')) {
     // 55 + DDD (2) + 9 + número (8)
-    cleaned = cleaned.slice(0, 5) + cleaned.slice(6);
+    // Queremos: 55 + DDD (2) + número (8)
+    cleaned = cleaned.slice(0, 4) + cleaned.slice(5);
   }
   
   return cleaned;
@@ -387,10 +389,18 @@ app.get('/api/whatsapp/qr/:deviceId', (req, res) => {
 app.delete('/api/whatsapp/session/:deviceId', (req, res) => {
   const { deviceId } = req.params;
   const authFolder = path.join(__dirname, 'auth', deviceId);
+
+  // Verifica se a pasta existe antes de tentar deletar
+  if (!fs.existsSync(authFolder)) {
+    qrCodes.delete(deviceId);
+    connections.delete(deviceId);
+    return res.json({ message: 'Sessão já removida (pasta não existe)' });
+  }
+
   rimraf(authFolder, (err) => {
     if (err) {
-      console.error('Erro ao deletar sessão:', err);
-      return res.status(500).json({ error: 'Erro ao deletar sessão' });
+      console.error('Erro ao deletar sessão:', err, 'Pasta:', authFolder);
+      return res.status(500).json({ error: 'Erro ao deletar sessão', details: err.message });
     }
     qrCodes.delete(deviceId);
     connections.delete(deviceId);
