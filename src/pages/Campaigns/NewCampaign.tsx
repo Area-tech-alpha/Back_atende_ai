@@ -304,75 +304,14 @@ const NewCampaign = () => {
 
       console.log('Mensagem salva com sucesso:', messageData);
 
-      // If immediate sending, make API call to Evolution
+      // Se for envio imediato, navega imediatamente para /campaigns
       if (!draft && isImmediate) {
-        const errors: string[] = [];
-        let successCount = 0;
-        let errorCount = 0;
-
-        // Remove números duplicados da lista de contatos
-        const uniqueContacts = removeDuplicateContacts(contacts);
-        if (uniqueContacts.length < contacts.length) {
-          console.log(`ℹ️ Removidos ${contacts.length - uniqueContacts.length} números duplicados da campanha`);
-        }
-
-        for (const [index, contact] of uniqueContacts.entries()) {
-          // Verifica se já existe um envio para este contato nesta campanha
-          const { data: existingSend } = await supabase
-            .from('envio_evolution')
-            .select('id')
-            .eq('id_mensagem', messageData?.id)
-            .eq('contato', contact.phone)
-            .single();
-
-          if (existingSend) {
-            console.log(`⚠️ Envio duplicado detectado para ${contact.phone} na campanha ${messageData?.id}`);
-            continue;
-          }
-
-          if (index > 0 && messageDelay > 0) {
-            await new Promise(resolve => setTimeout(resolve, messageDelay * 1000));
-          }
-
-          const formattedPhone = formatPhoneNumber(contact.phone);
-          const result = await sendMessageWithRetry(
-            selectedDevice,
-            formattedPhone,
-            message,
-            selectedImage ? imageUrl : undefined
-          );
-
-          await supabase
-            .from('envio_evolution')
-            .insert([{
-              id_mensagem: messageData?.id,
-              contato: contact.phone,
-              status: result.success ? 'success' : 'error',
-              erro: result.success ? null : result.error
-            }]);
-
-          if (result.success) {
-            successCount++;
-          } else {
-            errorCount++;
-            errors.push(`Falha ao enviar mensagem para ${contact.phone}: ${result.error}`);
-          }
-        }
-
-        // Atualiza o status da campanha baseado no resultado dos envios
-        const status = errorCount === 0 ? 'Completed' : 
-                      successCount === 0 ? 'Failed' : 'Partially Completed';
-        
-        await supabase
-          .from('mensagem_evolution')
-          .update({ status })
-          .eq('id', messageData?.id);
-
-        if (errors.length > 0) {
-          throw new Error(`Falha ao enviar algumas mensagens:\n${errors.join('\n')}`);
-        }
+        navigate('/campaigns');
+        // O envio será feito em background, não precisa aguardar
+        return;
       }
 
+      // Se for agendamento ou rascunho, navega normalmente
       navigate('/campaigns');
     } catch (err) {
       console.error('Error creating campaign:', err);

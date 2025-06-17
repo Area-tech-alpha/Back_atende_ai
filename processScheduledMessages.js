@@ -230,11 +230,11 @@ async function processScheduledMessages() {
           msg.imagem || null
         );
 
-        await supabase
-          .from('envio_evolution')
-          .insert([{
-            id_mensagem: msg.id,
-            contato: contact.phone,
+          await supabase
+            .from('envio_evolution')
+            .insert([{
+              id_mensagem: msg.id,
+              contato: contact.phone,
             status: result.success ? 'success' : 'error',
             erro: result.success ? null : result.error
           }]);
