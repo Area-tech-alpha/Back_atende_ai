@@ -99,7 +99,7 @@ const CampaignDetailsModal: React.FC<CampaignDetailsModalProps> = ({ campaignId,
                           {status.icon}
                           {status.label}
                         </td>
-                        <td className="py-2 px-4 text-accent/80 whitespace-nowrap">{new Date(envio.data_envio).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</td>
+                        <td className="py-2 px-4 text-accent/80 whitespace-nowrap">{new Date(envio.data_envio).toLocaleString('pt-BR')}</td>
                         <td className="py-2 px-4">
                           {envio.erro ? (
                             <span className="text-red-500" title={envio.erro}>
