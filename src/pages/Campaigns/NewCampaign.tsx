@@ -287,6 +287,7 @@ const NewCampaign = () => {
         scheduledDateTime = new Date(localDatePlus3.getTime() - (localDatePlus3.getTimezoneOffset() * 60000)).toISOString();
       }
 
+      // Salva a campanha no banco normalmente
       const { data: messageData, error: messageError } = await supabase
         .from('mensagem_evolution')
         .insert([
@@ -294,7 +295,7 @@ const NewCampaign = () => {
             name: campaignName,
             texto: message,
             imagem: imageUrl,
-            data_de_envio: scheduledDateTime,
+            data_de_envio: isImmediate ? new Date().toISOString() : scheduledDateTime,
             contatos: contatosId,
             delay: messageDelay,
             status: draft ? 'Draft' : (isImmediate ? null : 'Scheduled'),
@@ -313,84 +314,10 @@ const NewCampaign = () => {
 
       console.log('Mensagem salva com sucesso:', messageData);
 
-      // If immediate sending, make API call to Evolution
-      if (!draft && isImmediate) {
-        const errors: string[] = [];
-        let successCount = 0;
-        let errorCount = 0;
+      // Não faça o envio imediato pelo frontend!
+      // O CRONJOB do backend irá processar e enviar as mensagens.
 
-        // Remove números duplicados da lista de contatos
-        const uniqueContacts = removeDuplicateContacts(contacts);
-        if (uniqueContacts.length < contacts.length) {
-          console.log(`ℹ️ Removidos ${contacts.length - uniqueContacts.length} números duplicados da campanha`);
-        }
-
-        for (const [index, contact] of uniqueContacts.entries()) {
-          const formattedPhone = formatPhoneNumber(contact.phone);
-
-          // Verifica se já existe um envio para este contato nesta campanha
-          const { data: existingSend } = await supabase
-            .from('envio_evolution')
-            .select('id')
-            .eq('id_mensagem', messageData?.id)
-            .eq('contato', formattedPhone)
-            .single();
-
-          if (existingSend) {
-            console.log(`⚠️ Envio duplicado detectado para ${formattedPhone} na campanha ${messageData?.id}`);
-            continue;
-          }
-
-          if (index > 0 && messageDelay > 0) {
-            console.log(`⏳ Aguardando ${messageDelay} segundos antes do próximo envio...`);
-            await new Promise(resolve => setTimeout(resolve, messageDelay * 1000));
-          }
-
-          console.log(`📱 Enviando mensagem ${index + 1}/${uniqueContacts.length} para ${formattedPhone}...`);
-          
-          // Envia a mensagem e aguarda a confirmação
-          const result = await sendMessageWithRetry(
-            selectedDevice,
-            formattedPhone,
-            message,
-            selectedImage ? imageUrl : undefined
-          );
-
-          // Só registra no banco após receber a confirmação
-          await supabase
-            .from('envio_evolution')
-            .insert([{
-              id_mensagem: messageData?.id,
-              contato: formattedPhone,
-              status: result.success ? 'success' : 'error',
-              erro: result.success ? null : result.error
-            }]);
-
-          if (result.success) {
-            successCount++;
-            console.log(`✅ Mensagem ${index + 1}/${uniqueContacts.length} enviada com sucesso para ${formattedPhone}`);
-          } else {
-            errorCount++;
-            errors.push(`Falha ao enviar mensagem ${index + 1}/${uniqueContacts.length} para ${contact.phone}: ${result.error}`);
-          }
-
-          console.log(`⏸️ Aguardando confirmação antes de prosseguir para a próxima mensagem...`);
-        }
-
-        // Atualiza o status da campanha baseado no resultado dos envios
-        const status = errorCount === 0 ? 'Completed' : 
-                      successCount === 0 ? 'Failed' : 'Partially Completed';
-        
-        await supabase
-          .from('mensagem_evolution')
-          .update({ status })
-          .eq('id', messageData?.id);
-
-        if (errors.length > 0) {
-          throw new Error(`Falha ao enviar algumas mensagens:\n${errors.join('\n')}`);
-        }
-      }
-
+      // Redireciona ou mostra mensagem de sucesso normalmente
       navigate('/campaigns');
     } catch (err) {
       console.error('Error creating campaign:', err);
