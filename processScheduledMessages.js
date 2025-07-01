@@ -82,6 +82,8 @@ async function sendMessageWithRetry(deviceId, number, message, imagemUrl, maxRet
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      console.log(`[${getCurrentDateTime()}] 📤 Tentativa ${attempt}/${maxRetries} - Enviando mensagem para ${number}...`);
+      
       const response = await fetch('https://lionchat.tech/api/whatsapp/send', {
         method: 'POST',
         headers: {
@@ -95,18 +97,25 @@ async function sendMessageWithRetry(deviceId, number, message, imagemUrl, maxRet
         })
       });
 
+      console.log(`[${getCurrentDateTime()}] 📥 Resposta recebida: HTTP ${response.status}`);
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
-      return { success: true };
+      // Aguarda a resposta completa e verifica se foi realmente um sucesso
+      const responseData = await response.json();
+      console.log(`[${getCurrentDateTime()}] ✅ Confirmação de envio recebida:`, responseData);
+
+      return { success: true, data: responseData };
     } catch (error) {
       lastError = error;
       console.error(`[${getCurrentDateTime()}] [TENTATIVA ${attempt}/${maxRetries}] Erro ao enviar mensagem para ${number}:`, error);
       
       // Aguarda um tempo crescente entre as tentativas (1s, 2s, 4s)
       if (attempt < maxRetries) {
+        console.log(`[${getCurrentDateTime()}] ⏳ Aguardando ${Math.pow(2, attempt - 1)} segundos antes da próxima tentativa...`);
         await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 1000));
       }
     }
@@ -201,28 +210,29 @@ async function processScheduledMessages() {
       console.log(`[${getCurrentDateTime()}] ⏱️ Intervalo configurado: ${messageDelay} segundos`);
 
       for (const [index, contact] of uniqueContatos.entries()) {
+        const formattedPhone = formatPhoneNumber(contact.phone);
+
         // Verifica se já existe um envio para este contato nesta campanha
         const { data: existingSend } = await supabase
           .from('envio_evolution')
           .select('id')
           .eq('id_mensagem', msg.id)
-          .eq('contato', contact.phone)
+          .eq('contato', formattedPhone)
           .single();
 
         if (existingSend) {
-          console.log(`[${getCurrentDateTime()}] ⚠️ Envio duplicado detectado para ${contact.phone} na campanha ${msg.id}`);
+          console.log(`[${getCurrentDateTime()}] ⚠️ Envio duplicado detectado para ${formattedPhone} na campanha ${msg.id}`);
           continue;
         }
 
-        // Aguarda o intervalo configurado entre as mensagens (exceto para a primeira)
         if (index > 0 && messageDelay > 0) {
           console.log(`[${getCurrentDateTime()}] ⏳ Aguardando ${messageDelay} segundos antes do próximo envio...`);
           await new Promise(resolve => setTimeout(resolve, messageDelay * 1000));
         }
 
-        const formattedPhone = formatPhoneNumber(contact.phone);
-        console.log(`[${getCurrentDateTime()}] 📱 Enviando mensagem para ${formattedPhone}...`);
+        console.log(`[${getCurrentDateTime()}] 📱 Enviando mensagem ${index + 1}/${uniqueContatos.length} para ${formattedPhone}...`);
         
+        // Envia a mensagem e aguarda a confirmação
         const result = await sendMessageWithRetry(
           msg.device_id,
           formattedPhone,
@@ -230,22 +240,25 @@ async function processScheduledMessages() {
           msg.imagem || null
         );
 
-          await supabase
-            .from('envio_evolution')
-            .insert([{
-              id_mensagem: msg.id,
-              contato: contact.phone,
+        // Só registra no banco após receber a confirmação
+        await supabase
+          .from('envio_evolution')
+          .insert([{
+            id_mensagem: msg.id,
+            contato: formattedPhone,
             status: result.success ? 'success' : 'error',
             erro: result.success ? null : result.error
           }]);
 
         if (result.success) {
           successCount++;
-          console.log(`[${getCurrentDateTime()}] ✅ Mensagem enviada com sucesso para ${formattedPhone}`);
+          console.log(`[${getCurrentDateTime()}] ✅ Mensagem ${index + 1}/${uniqueContatos.length} enviada com sucesso para ${formattedPhone}`);
         } else {
           errorCount++;
-          console.error(`[${getCurrentDateTime()}] ❌ Falha ao enviar mensagem para ${formattedPhone}: ${result.error}`);
+          console.error(`[${getCurrentDateTime()}] ❌ Falha ao enviar mensagem ${index + 1}/${uniqueContatos.length} para ${formattedPhone}: ${result.error}`);
         }
+
+        console.log(`[${getCurrentDateTime()}] ⏸️ Aguardando confirmação antes de prosseguir para a próxima mensagem...`);
       }
 
       // Atualiza o status da campanha baseado no resultado dos envios
