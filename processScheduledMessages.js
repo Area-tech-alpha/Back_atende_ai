@@ -3,6 +3,9 @@ const fetch = require('node-fetch');
 const path = require('path');
 const fs = require('fs');
 
+// Cache para controlar campanhas em processamento
+const processingCampaigns = new Set();
+const recentSends = new Map(); // deviceId_number -> timestamp
 
 const supabaseUrl = 'https://izmzxqzcsnaykofpcjjh.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6bXp4cXpjc25heWtvZnBjampoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMzc3MTM4NCwiZXhwIjoyMDQ5MzQ3Mzg0fQ.jMN_DdFGClZ5aQhZb1e9JuYYG4Cz6Obkt41O4K1523U';
@@ -78,6 +81,15 @@ async function sendMessageWithRetry(deviceId, number, message, imagemUrl, maxRet
     };
   }
 
+  // Verifica se houve um envio recente para este número (últimos 3 segundos)
+  const sendKey = `${deviceId}_${number}`;
+  const now = Date.now();
+  const lastSend = recentSends.get(sendKey);
+  if (lastSend && (now - lastSend) < 3000) {
+    console.log(`[${getCurrentDateTime()}] ⚠️ Envio muito recente para ${number}, aguardando...`);
+    await new Promise(resolve => setTimeout(resolve, 3000));
+  }
+
   let lastError = null;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -107,6 +119,9 @@ async function sendMessageWithRetry(deviceId, number, message, imagemUrl, maxRet
       // Aguarda a resposta completa e verifica se foi realmente um sucesso
       const responseData = await response.json();
       console.log(`[${getCurrentDateTime()}] ✅ Confirmação de envio recebida:`, responseData);
+
+      // Registra o envio bem-sucedido
+      recentSends.set(sendKey, now);
 
       return { success: true, data: responseData };
     } catch (error) {
@@ -175,6 +190,15 @@ async function processScheduledMessages() {
   console.log(`[${getCurrentDateTime()}] 📨 Encontradas ${messages.length} mensagens para processar.`);
 
   for (const msg of messages) {
+    // Verifica se a campanha já está sendo processada
+    if (processingCampaigns.has(msg.id)) {
+      console.log(`[${getCurrentDateTime()}] ⚠️ Campanha ${msg.id} já está sendo processada, pulando...`);
+      continue;
+    }
+
+    // Marca a campanha como em processamento
+    processingCampaigns.add(msg.id);
+    
     console.log(`\n[${getCurrentDateTime()}] 📝 Processando campanha ${msg.id} - "${msg.name || 'Sem nome'}"`);
     
     try {
@@ -278,12 +302,29 @@ async function processScheduledMessages() {
         .from('mensagem_evolution')
         .update({ status: 'Failed' })
         .eq('id', msg.id);
+    } finally {
+      // Remove a campanha da lista de processamento
+      processingCampaigns.delete(msg.id);
     }
   }
 }
 
 // Configura o intervalo de verificação (a cada 1 minuto)
 const CHECK_INTERVAL = 60000; // 1 minuto em milissegundos
+
+// Função para limpar cache de envios recentes (remove entradas mais antigas que 1 hora)
+function cleanupRecentSends() {
+  const now = Date.now();
+  const oneHourAgo = now - (60 * 60 * 1000);
+  
+  for (const [key, timestamp] of recentSends.entries()) {
+    if (timestamp < oneHourAgo) {
+      recentSends.delete(key);
+    }
+  }
+  
+  console.log(`[${getCurrentDateTime()}] 🧹 Cache limpo. Entradas restantes: ${recentSends.size}`);
+}
 
 // Função para iniciar o loop de verificação
 async function startScheduler() {
@@ -295,6 +336,9 @@ async function startScheduler() {
   
   // Configura o intervalo para execuções subsequentes
   setInterval(processScheduledMessages, CHECK_INTERVAL);
+  
+  // Limpa o cache a cada 30 minutos
+  setInterval(cleanupRecentSends, 30 * 60 * 1000);
 }
 
 // Inicia o agendador

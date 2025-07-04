@@ -40,6 +40,10 @@ app.use(express.static(path.join(__dirname, 'dist')));
 const connections = new Map();
 const qrCodes = new Map(); // deviceId -> qr string
 
+// Cache para controlar envios em andamento e evitar duplicatas
+const pendingSends = new Map(); // deviceId_number -> Promise
+const recentSends = new Map(); // deviceId_number -> timestamp
+
 function formatPhoneNumber(phone) {
   // Remove todos os caracteres não numéricos
   let cleaned = phone.replace(/\D/g, '');
@@ -334,36 +338,83 @@ app.post('/api/whatsapp/send', async (req, res) => {
       ? formattedNumberRaw
       : `${formattedNumberRaw}@s.whatsapp.net`;
 
-    // Verifica se o número tem WhatsApp
-    const exists = await connection.client.onWhatsApp(formattedNumber);
-    console.log('[SEND] Resultado onWhatsApp:', exists);
-    if (!exists || !exists[0]?.exists) {
-      console.error('[SEND] Número não possui WhatsApp:', formattedNumberRaw);
-      return res.status(400).json({ error: 'O número informado não possui WhatsApp.' });
+    // Chave única para controle de duplicatas
+    const sendKey = `${deviceId}_${formattedNumber}`;
+    
+    // Verifica se já existe um envio em andamento para este número
+    if (pendingSends.has(sendKey)) {
+      console.log(`[SEND] Envio em andamento para ${formattedNumber}, aguardando...`);
+      try {
+        const result = await pendingSends.get(sendKey);
+        return res.status(200).json(result);
+      } catch (error) {
+        pendingSends.delete(sendKey);
+        console.error(`[SEND] Erro no envio anterior para ${formattedNumber}:`, error);
+      }
     }
 
-    let result;
-
-    if (imagemUrl) {
-      // Baixa imagem da URL
-      console.log('[SEND] Baixando imagem da URL:', imagemUrl);
-      const response = await axios.get(imagemUrl, { responseType: 'arraybuffer' });
-      const imageBuffer = Buffer.from(response.data, 'binary');
-
-      result = await connection.client.sendMessage(formattedNumber, {
-        image: imageBuffer,
-        caption: caption || message || '',
+    // Verifica se houve um envio recente (últimos 5 segundos)
+    const now = Date.now();
+    const lastSend = recentSends.get(sendKey);
+    if (lastSend && (now - lastSend) < 5000) {
+      console.log(`[SEND] Envio muito recente para ${formattedNumber}, rejeitando...`);
+      return res.status(429).json({
+        error: 'Envio muito frequente',
+        details: 'Aguarde alguns segundos antes de tentar novamente'
       });
-      console.log('[SEND] Mensagem com imagem enviada:', result);
-    } else {
-      result = await connection.client.sendMessage(formattedNumber, { text: message });
-      console.log('[SEND] Mensagem de texto enviada:', result);
     }
 
-    return res.status(200).json({
-      success: true,
-      messageId: result.key.id
-    });
+    // Cria uma Promise para controlar o envio
+    const sendPromise = (async () => {
+      try {
+        // Verifica se o número tem WhatsApp
+        const exists = await connection.client.onWhatsApp(formattedNumber);
+        console.log('[SEND] Resultado onWhatsApp:', exists);
+        if (!exists || !exists[0]?.exists) {
+          console.error('[SEND] Número não possui WhatsApp:', formattedNumberRaw);
+          throw new Error('O número informado não possui WhatsApp.');
+        }
+
+        let result;
+
+        if (imagemUrl) {
+          // Baixa imagem da URL
+          console.log('[SEND] Baixando imagem da URL:', imagemUrl);
+          const response = await axios.get(imagemUrl, { responseType: 'arraybuffer' });
+          const imageBuffer = Buffer.from(response.data, 'binary');
+
+          result = await connection.client.sendMessage(formattedNumber, {
+            image: imageBuffer,
+            caption: caption || message || '',
+          });
+          console.log('[SEND] Mensagem com imagem enviada:', result);
+        } else {
+          result = await connection.client.sendMessage(formattedNumber, { text: message });
+          console.log('[SEND] Mensagem de texto enviada:', result);
+        }
+
+        // Registra o envio bem-sucedido
+        recentSends.set(sendKey, now);
+        
+        return {
+          success: true,
+          messageId: result.key.id
+        };
+      } catch (error) {
+        console.error('[SEND] Erro durante envio:', error);
+        throw error;
+      } finally {
+        // Remove da lista de envios pendentes
+        pendingSends.delete(sendKey);
+      }
+    })();
+
+    // Armazena a Promise para evitar envios duplicados
+    pendingSends.set(sendKey, sendPromise);
+
+    // Aguarda o resultado
+    const result = await sendPromise;
+    return res.status(200).json(result);
   } catch (error) {
     console.error('[SEND] Erro ao enviar mensagem:', error);
     return res.status(500).json({
@@ -487,6 +538,63 @@ app.get('/api/mistral/models', async (req, res) => {
   } catch (error) {
     console.error('Erro ao buscar modelos da Mistral:', error?.response?.data || error.message);
     res.status(500).json({ error: 'Erro ao buscar modelos da Mistral' });
+  }
+});
+
+// Função para limpar cache de envios recentes (remove entradas mais antigas que 1 hora)
+function cleanupRecentSends() {
+  const now = Date.now();
+  const oneHourAgo = now - (60 * 60 * 1000);
+  
+  let cleanedCount = 0;
+  for (const [key, timestamp] of recentSends.entries()) {
+    if (timestamp < oneHourAgo) {
+      recentSends.delete(key);
+      cleanedCount++;
+    }
+  }
+  
+  console.log(`[CLEANUP] Cache limpo. ${cleanedCount} entradas removidas. Restantes: ${recentSends.size}`);
+}
+
+// Limpa o cache a cada 30 minutos
+setInterval(cleanupRecentSends, 30 * 60 * 1000);
+
+// Rota para debug - verificar status dos caches
+app.get('/api/debug/caches', (req, res) => {
+  try {
+    const now = Date.now();
+    const pendingSendsArray = Array.from(pendingSends.entries()).map(([key, promise]) => ({
+      key,
+      status: 'pending'
+    }));
+    
+    const recentSendsArray = Array.from(recentSends.entries()).map(([key, timestamp]) => ({
+      key,
+      timestamp,
+      ageSeconds: Math.floor((now - timestamp) / 1000)
+    }));
+    
+    return res.status(200).json({
+      pendingSends: {
+        count: pendingSends.size,
+        items: pendingSendsArray
+      },
+      recentSends: {
+        count: recentSends.size,
+        items: recentSendsArray
+      },
+      connections: {
+        count: connections.size,
+        devices: Array.from(connections.keys())
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao obter status dos caches:', error);
+    return res.status(500).json({
+      error: 'Erro ao obter status dos caches',
+      details: error.message
+    });
   }
 });
 
