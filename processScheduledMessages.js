@@ -94,22 +94,6 @@ async function processScheduledMessages() {
       for (const [index, contact] of uniqueContatos.entries()) {
         const formattedPhone = formatPhoneNumber(contact.phone);
 
-        const { data: existingSend } = await supabase
-          .from("envio_evolution")
-          .select("id")
-          .eq("id_mensagem", msg.id)
-          .eq("contato", formattedPhone)
-          .single();
-
-        if (existingSend) {
-          console.log(
-            `[${getCurrentDateTime()}] Envio duplicado detectado para ${formattedPhone} na campanha ${
-              msg.id
-            }`
-          );
-          continue;
-        }
-
         if (index > 0 && messageDelay > 0) {
           console.log(
             `[${getCurrentDateTime()}] Aguardando ${messageDelay} segundos antes do próximo envio...`
@@ -132,9 +116,7 @@ async function processScheduledMessages() {
           msg.imagem || null
         );
 
-        await supabase
-        .from("envio_evolution")
-        .upsert(
+        await supabase.from("envio_evolution").upsert(
           [
             {
               id_mensagem: msg.id,
@@ -144,11 +126,9 @@ async function processScheduledMessages() {
             },
           ],
           {
-            onConflict: "id_mensagem,contato" 
+            onConflict: "id_mensagem,contato",
           }
         );
-      
-        
 
         if (result.success) {
           successCount++;
