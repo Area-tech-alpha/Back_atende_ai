@@ -33,7 +33,7 @@ const Login = () => {
           <div className="text-center mb-8">
             <div className="relative inline-block mb-6">
               <img
-                src="https://izmzxqzcsnaykofpcjjh.supabase.co/storage/v1/object/public/alpha//logo-alpha.png"
+                src="https://qbezqfbovuyiphkvvnen.supabase.co/storage/v1/object/public/alpha//logo-alpha.png"
                 alt="Logomarca Alpha"
                 className="w-48 h-48 object-contain animate-float"
               />

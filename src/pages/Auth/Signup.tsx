@@ -39,7 +39,7 @@ const Signup = () => {
         <div className="p-8">
           <div className="text-center mb-8">
             <img
-              src="https://izmzxqzcsnaykofpcjjh.supabase.co/storage/v1/object/public/alpha//logo-alpha.png"
+              src="https://qbezqfbovuyiphkvvnen.supabase.co/storage/v1/object/public/alpha//logo-alpha.png"
               alt="Logomarca Alpha"
               className="mx-auto mb-6 w-24 h-24 object-contain"
             />

@@ -47,7 +47,7 @@ const Layout = () => {
           <div className="flex items-center justify-between h-20 px-6 border-b border-secondary-dark">
             <div className="flex items-center justify-center w-full">
               <img
-                src="https://izmzxqzcsnaykofpcjjh.supabase.co/storage/v1/object/public/alpha//logo-alpha.png"
+                src="https://qbezqfbovuyiphkvvnen.supabase.co/storage/v1/object/public/alpha//logo-alpha.png"
                 alt="Alpha Logo"
                 className="h-24 w-24 object-contain"
               />
