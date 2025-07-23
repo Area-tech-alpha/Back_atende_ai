@@ -1,156 +1,100 @@
-async function processScheduledMessages() {
-  console.log(`\n[${getCurrentDateTime()}] Verificando mensagens agendadas...`);
+import { supabase } from "../lib/supabase.js";
+import { sendMessageWithRetry } from "../utils/sendMessageWithRetry.js";
+import { getCurrentDateTime } from "../utils/getCurrentDateTime.js";
 
-  const now = new Date().toISOString();
-  const { data: messages, error } = await supabase
+export async function processScheduledMessages() {
+  const { data: messages, error: fetchError } = await supabase
     .from("mensagem_evolution")
     .select("*")
-    .lte("data_de_envio", now)
-    .or("status.is.null,status.eq.Scheduled");
+    .eq("status", "Scheduled");
 
-  if (error) {
+  if (fetchError) {
     console.error(
-      `[${getCurrentDateTime()}] Erro ao buscar mensagens agendadas:`,
-      error
+      `[${getCurrentDateTime()}] Erro ao buscar campanhas agendadas:`,
+      fetchError
     );
     return;
   }
-
-  if (!messages || messages.length === 0) {
-    console.log(
-      `[${getCurrentDateTime()}] Nenhuma mensagem agendada encontrada para envio.`
-    );
-    return;
-  }
-
-  console.log(
-    `[${getCurrentDateTime()}] Encontradas ${
-      messages.length
-    } mensagens para processar.`
-  );
 
   for (const msg of messages) {
-    if (processingCampaigns.has(msg.id)) {
-      console.log(
-        `[${getCurrentDateTime()}] Campanha ${
-          msg.id
-        } já está sendo processada, pulando...`
-      );
-      continue;
-    }
-
-    processingCampaigns.add(msg.id);
-
-    console.log(
-      `[${getCurrentDateTime()}] Processando campanha ${msg.id} - "${
-        msg.name || "Sem nome"
-      }"`
-    );
-
     try {
-      const activeDevice = await getActiveDevice(msg.device_id);
-      if (!activeDevice) {
+      console.log(
+        `[${getCurrentDateTime()}] Processando campanha ID ${msg.id} (${
+          msg.nome
+        })`
+      );
+
+      // Buscar envios pendentes já cadastrados
+      const { data: enviosPendentes, error: erroEnvio } = await supabase
+        .from("envio_evolution")
+        .select("*")
+        .eq("id_mensagem", msg.id)
+        .in("status", [null, "Scheduled"]);
+
+      if (erroEnvio) throw erroEnvio;
+
+      if (!enviosPendentes || enviosPendentes.length === 0) {
         console.log(
-          `[${getCurrentDateTime()}] Pulando campanha ${msg.id} - dispositivo ${
-            msg.device_id
-          } não está disponível`
+          `[${getCurrentDateTime()}] Nenhum envio pendente encontrado para a campanha ${
+            msg.id
+          }`
         );
         continue;
       }
 
-      const { data: contatosData, error: contatosError } = await supabase
-        .from("contato_evolution")
-        .select("*")
-        .eq("id", msg.contatos)
-        .single();
-
-      if (contatosError) throw contatosError;
-
-      const contatos = JSON.parse(contatosData.contatos);
-      const uniqueContatos = removeDuplicateContacts(contatos);
-
-      if (uniqueContatos.length < contatos.length) {
-        console.log(
-          `[${getCurrentDateTime()}] Removidos ${
-            contatos.length - uniqueContatos.length
-          } números duplicados da campanha ${msg.id}`
-        );
-      }
-
       console.log(
-        `[${getCurrentDateTime()}] Campanha possui ${
-          uniqueContatos.length
-        } contatos únicos para envio.`
+        `[${getCurrentDateTime()}] ${
+          enviosPendentes.length
+        } envios pendentes encontrados`
       );
 
       let successCount = 0;
       let errorCount = 0;
-      const messageDelay = msg.delay || 60;
 
-      console.log(
-        `[${getCurrentDateTime()}] Intervalo configurado: ${messageDelay} segundos`
-      );
+      for (const [index, envio] of enviosPendentes.entries()) {
+        const contato = envio.contato;
 
-      for (const [index, contact] of uniqueContatos.entries()) {
-        const formattedPhone = formatPhoneNumber(contact.phone);
-
-        if (index > 0 && messageDelay > 0) {
+        if (index > 0 && msg.delay > 0) {
           console.log(
-            `[${getCurrentDateTime()}] Aguardando ${messageDelay} segundos antes do próximo envio...`
+            `[${getCurrentDateTime()}] Aguardando ${msg.delay} segundos...`
           );
-          await new Promise((resolve) =>
-            setTimeout(resolve, messageDelay * 1000)
-          );
+          await new Promise((resolve) => setTimeout(resolve, msg.delay * 1000));
         }
 
         console.log(
-          `[${getCurrentDateTime()}] Enviando mensagem ${index + 1}/${
-            uniqueContatos.length
-          } para ${formattedPhone}...`
+          `[${getCurrentDateTime()}] Enviando mensagem para ${contato}`
         );
 
         const result = await sendMessageWithRetry(
           msg.device_id,
-          formattedPhone,
+          contato,
           msg.texto,
           msg.imagem || null
         );
 
-        await supabase.from("envio_evolution").upsert(
-          [
-            {
-              id_mensagem: msg.id,
-              contato: formattedPhone,
-              status: result.success ? "success" : "error",
-              erro: result.success ? null : result.error,
-            },
-          ],
-          {
-            onConflict: "id_mensagem,contato",
-          }
-        );
+        await supabase
+          .from("envio_evolution")
+          .update({
+            status: result.success ? "success" : "error",
+            erro: result.success ? null : result.error,
+            data_envio: new Date().toISOString(),
+          })
+          .eq("id", envio.id);
 
         if (result.success) {
           successCount++;
-          console.log(
-            `[${getCurrentDateTime()}] Mensagem ${index + 1}/${
-              uniqueContatos.length
-            } enviada com sucesso para ${formattedPhone}`
-          );
+          console.log(`[${getCurrentDateTime()}] Sucesso: ${contato}`);
         } else {
           errorCount++;
           console.error(
-            `[${getCurrentDateTime()}] Falha ao enviar mensagem ${index + 1}/${
-              uniqueContatos.length
-            } para ${formattedPhone}: ${result.error}`
+            `[${getCurrentDateTime()}] Erro ao enviar para ${contato}: ${
+              result.error
+            }`
           );
         }
-
-        console.log(
-          `[${getCurrentDateTime()}] Aguardando confirmação antes de prosseguir para a próxima mensagem...`
-        );
       }
 
+      // Atualizar status da campanha
       const status =
         errorCount === 0
           ? "Completed"
@@ -158,81 +102,21 @@ async function processScheduledMessages() {
           ? "Failed"
           : "Partially Completed";
 
-      const { error: updateError } = await supabase
+      await supabase
         .from("mensagem_evolution")
         .update({ status })
         .eq("id", msg.id);
 
-      if (updateError) {
-        console.error(
-          `[${getCurrentDateTime()}] Erro ao atualizar status da campanha ${
-            msg.id
-          }:`,
-          updateError.message
-        );
-      }
-
       console.log(
-        `[${getCurrentDateTime()}] Campanha ${msg.id} finalizada: ${status}`
-      );
-      console.log(
-        `[${getCurrentDateTime()}] Estatísticas: ${successCount} sucessos, ${errorCount} erros`
-      );
-    } catch (err) {
-      console.error(
-        `[${getCurrentDateTime()}] Erro inesperado ao processar campanha ${
+        `[${getCurrentDateTime()}] Envio concluído para campanha ${
           msg.id
-        }:`,
-        err
+        }. Sucessos: ${successCount}, Erros: ${errorCount}`
       );
-
-      await supabase
-        .from("mensagem_evolution")
-        .update({ status: "Failed" })
-        .eq("id", msg.id);
-    } finally {
-      processingCampaigns.delete(msg.id);
+    } catch (error) {
+      console.error(
+        `[${getCurrentDateTime()}] Erro ao processar campanha ${msg.id}:`,
+        error
+      );
     }
   }
 }
-
-const CHECK_INTERVAL = 60000;
-
-function cleanupRecentSends() {
-  const now = Date.now();
-  const oneHourAgo = now - 60 * 60 * 1000;
-
-  for (const [key, timestamp] of recentSends.entries()) {
-    if (timestamp < oneHourAgo) {
-      recentSends.delete(key);
-    }
-  }
-
-  console.log(
-    `[${getCurrentDateTime()}] Cache limpo. Entradas restantes: ${
-      recentSends.size
-    }`
-  );
-}
-
-async function startScheduler() {
-  console.log(`[${getCurrentDateTime()}] Iniciando agendador de mensagens...`);
-  console.log(
-    `[${getCurrentDateTime()}] Verificando mensagens a cada ${
-      CHECK_INTERVAL / 1000
-    } segundos`
-  );
-
-  await processScheduledMessages();
-
-  setInterval(processScheduledMessages, CHECK_INTERVAL);
-  setInterval(cleanupRecentSends, 30 * 60 * 1000);
-}
-
-startScheduler().catch((error) => {
-  console.error(
-    `[${getCurrentDateTime()}] Erro fatal ao iniciar agendador:`,
-    error
-  );
-  process.exit(1);
-});
