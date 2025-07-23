@@ -132,27 +132,23 @@ async function processScheduledMessages() {
           msg.imagem || null
         );
 
-        try {
-          await supabase.from("envio_evolution").insert([
+        await supabase
+        .from("envio_evolution")
+        .upsert(
+          [
             {
               id_mensagem: msg.id,
               contato: formattedPhone,
               status: result.success ? "success" : "error",
               erro: result.success ? null : result.error,
             },
-          ]);
-        } catch (error) {
-          if (error.code === "23505") {
-            console.log(
-              `[${getCurrentDateTime()}] Registro duplicado no insert para ${formattedPhone}, ignorando...`
-            );
-          } else {
-            console.error(
-              `[${getCurrentDateTime()}] Erro ao registrar envio para ${formattedPhone}:`,
-              error.message
-            );
+          ],
+          {
+            onConflict: "id_mensagem,contato" 
           }
-        }
+        );
+      
+        
 
         if (result.success) {
           successCount++;
