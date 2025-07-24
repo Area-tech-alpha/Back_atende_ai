@@ -606,13 +606,3 @@ app.get('*', (req, res) => {
 app.listen(port, '0.0.0.0', () => {
   console.log(`Servidor rodando na porta ${port}`);
 }); 
-
-app.get('/api/whatsapp/qr/:deviceId', (req, res) => {
-  const { deviceId } = req.params;
-  const qr = qrCodes.get(deviceId);
-  if (qr) {
-    res.json({ qr });
-  } else {
-    res.status(404).json({ error: 'QR Code não encontrado para este deviceId' });
-  }
-});
