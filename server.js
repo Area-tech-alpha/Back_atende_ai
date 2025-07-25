@@ -1,16 +1,16 @@
 require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
-const { Boom } = require('@hapi/boom');
-const qrcode = require('qrcode');
-const fs = require('fs');
-const path = require('path');
-const axios = require('axios');
-const crypto = require('crypto');
-const rimraf = require('rimraf');
-const mistralService = require('./src/services/mistralService');
-const { setChatbot, removeChatbot, toggleChatbot, getChatbot, listChatbots } = require('./src/config/chatbots');
+import express from 'express';
+import cors from 'cors';
+import makeWASocket, { useMultiFileAuthState, DisconnectReason } from '@whiskeysockets/baileys';
+import Boom from '@hapi/boom';
+import qrcode from 'qrcode';
+import fs from 'fs';
+import path from 'path';
+import axios from 'axios';
+import crypto from 'crypto';
+import rimraf from 'rimraf';
+import mistralService from './src/services/mistralService.js';
+import { setChatbot, removeChatbot, toggleChatbot, getChatbot, listChatbots } from './src/config/chatbots.js';
 
 // Polyfill para o crypto no ambiente do Railway
 if (typeof global.crypto === 'undefined') {

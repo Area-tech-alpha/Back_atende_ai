@@ -1,4 +1,4 @@
-const axios = require('axios');
+import axios from 'axios';
 
 class MistralService {
     constructor() {
@@ -75,4 +75,4 @@ class MistralService {
     }
 }
 
-module.exports = new MistralService(); 
+export default new MistralService(); 

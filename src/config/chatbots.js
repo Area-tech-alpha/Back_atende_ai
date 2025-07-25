@@ -1,7 +1,7 @@
 const chatbots = new Map();
 
 // Função para adicionar ou atualizar um chatbot
-function setChatbot(phoneNumber, config) {
+export function setChatbot(phoneNumber, config) {
     const formattedNumber = formatPhoneNumber(phoneNumber);
     chatbots.set(formattedNumber, {
         ...config,
@@ -12,13 +12,13 @@ function setChatbot(phoneNumber, config) {
 }
 
 // Função para remover um chatbot
-function removeChatbot(phoneNumber) {
+export function removeChatbot(phoneNumber) {
     const formattedNumber = formatPhoneNumber(phoneNumber);
     chatbots.delete(formattedNumber);
 }
 
 // Função para ativar/desativar um chatbot
-function toggleChatbot(phoneNumber, isActive) {
+export function toggleChatbot(phoneNumber, isActive) {
     const formattedNumber = formatPhoneNumber(phoneNumber);
     const chatbot = chatbots.get(formattedNumber);
     if (chatbot) {
@@ -28,13 +28,13 @@ function toggleChatbot(phoneNumber, isActive) {
 }
 
 // Função para obter um chatbot
-function getChatbot(phoneNumber) {
+export function getChatbot(phoneNumber) {
     const formattedNumber = formatPhoneNumber(phoneNumber);
     return chatbots.get(formattedNumber);
 }
 
 // Função para listar todos os chatbots
-function listChatbots() {
+export function listChatbots() {
     return Array.from(chatbots.entries()).map(([phone, config]) => ({
         phone,
         ...config
@@ -51,12 +51,4 @@ function formatPhoneNumber(phone) {
         cleaned = cleaned.slice(0, 5) + cleaned.slice(6);
     }
     return cleaned;
-}
-
-module.exports = {
-    setChatbot,
-    removeChatbot,
-    toggleChatbot,
-    getChatbot,
-    listChatbots
-}; 
+} 
