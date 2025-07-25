@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import crypto from 'crypto';
-import rimraf from 'rimraf';
+import { rimraf } from 'rimraf';
 import mistralService from './src/services/mistralService.js';
 import { setChatbot, removeChatbot, toggleChatbot, getChatbot, listChatbots } from './src/config/chatbots.js';
 

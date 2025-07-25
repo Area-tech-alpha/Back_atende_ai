@@ -1,4 +1,4 @@
-import { supabase } from "../lib/supabase.js";
+import { supabase } from './src/lib/supabase.js';
 import { sendMessageWithRetry } from "../utils/sendMessageWithRetry.js";
 import { getCurrentDateTime } from "../utils/getCurrentDateTime.js";
 
