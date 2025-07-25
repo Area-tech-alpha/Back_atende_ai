@@ -12,6 +12,10 @@ import crypto from 'crypto';
 import { rimraf } from 'rimraf';
 import mistralService from './src/services/mistralService.js';
 import { setChatbot, removeChatbot, toggleChatbot, getChatbot, listChatbots } from './src/config/chatbots.js';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Polyfill para o crypto no ambiente do Railway
 if (typeof global.crypto === 'undefined') {
