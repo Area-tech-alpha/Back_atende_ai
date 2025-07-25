@@ -1,6 +1,6 @@
-const supabase = require("../lib/supabase.js");
-const { sendMessageWithRetry } = require("../utils/sendMessageWithRetry.js");
-const { getCurrentDateTime } = require("../utils/getCurrentDateTime.js");
+import { supabase } from "../lib/supabase.js";
+import { sendMessageWithRetry } from "../utils/sendMessageWithRetry.js";
+import { getCurrentDateTime } from "../utils/getCurrentDateTime.js";
 
 export async function processScheduledMessages() {
   const { data: messages, error: fetchError } = await supabase
