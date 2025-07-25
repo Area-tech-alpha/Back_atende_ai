@@ -66,6 +66,7 @@ function formatPhoneNumber(phone) {
 
 const startConnection = async (deviceId, connection_name) => {
   console.log('[WA-START] Iniciando conexão para deviceId:', deviceId);
+  console.log('[DEBUG] Criando pasta de autenticação para deviceId:', deviceId); 
   const authFolder = path.join(__dirname, 'auth', deviceId);
   fs.mkdirSync(authFolder, { recursive: true });
 
