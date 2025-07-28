@@ -74,7 +74,7 @@ const startConnection = async (deviceId, connection_name) => {
   console.log('[DEBUG] Criando pasta de autenticação para deviceId:', deviceId); 
   const authFolder = path.join(__dirname, 'auth', deviceId);
   
-  // Limpar pasta de autenticação se existir (força nova conexão)
+  // Sempre limpar pasta de autenticação para forçar nova conexão
   if (fs.existsSync(authFolder)) {
     console.log('[WA-START] Limpando pasta de autenticação existente');
     try {
@@ -120,36 +120,14 @@ const startConnection = async (deviceId, connection_name) => {
     auth: state,
     printQRInTerminal: true,
     browser: ['Chrome (Linux)', '', ''],
-    connectTimeoutMs: 120000, // Aumentado para 2 minutos
-    defaultQueryTimeoutMs: 120000, // Aumentado para 2 minutos
-    retryRequestDelayMs: 500, // Aumentado para 500ms
+    connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 60000,
+    retryRequestDelayMs: 250,
     markOnlineOnConnect: false,
     deviceId: deviceId,
-    // Configurações específicas para Railway
+    // Configurações simplificadas para Railway
     keepAliveIntervalMs: 30000,
     emitOwnEvents: false,
-    shouldIgnoreJid: jid => isJidBroadcast(jid),
-    patchMessageBeforeSending: (msg) => {
-      const requiresPatch = !!(
-        msg.buttonsMessage 
-        || msg.templateMessage
-        || msg.listMessage
-      );
-      if (requiresPatch) {
-        msg = {
-          viewOnceMessage: {
-            message: {
-              messageContextInfo: {
-                deviceListMetadataVersion: 2,
-                deviceListMetadata: {},
-              },
-              ...msg,
-            },
-          },
-        };
-      }
-      return msg;
-    },
   });
 
   const prevConnection = connections.get(deviceId);
@@ -203,24 +181,12 @@ const startConnection = async (deviceId, connection_name) => {
   client.ev.on('creds.update', saveCreds);
   console.log('[WA-START] Eventos de conexão e credenciais configurados');
 
+  // Configurar evento QR apenas uma vez
   client.ev.on('qr', (qr) => {
+    console.log(`[WA-QR] QR Code recebido para deviceId=${deviceId}`);
     qrcode.toDataURL(qr, (err, url) => {
       if (!err) {
         qrCodes.set(deviceId, url);
-        console.log(`[WA-QR] QR Code base64 salvo para deviceId=${deviceId}`);
-      } else {
-        console.error('[WA-QR] Erro ao gerar QR Code base64:', err);
-      }
-    });
-  });
-  client.ev.on('creds.update', saveCreds);
-  console.log('[WA-START] Eventos de conexão e credenciais configurados');
-
-  // Sempre tentar gerar o QR code, independente do estado
-  client.ev.on('qr', (qr) => {
-    qrcode.toDataURL(qr, (err, url) => {
-      if (!err) {
-        qrCodes.set(deviceId, url); // Salva o base64
         console.log(`[WA-QR] QR Code base64 salvo para deviceId=${deviceId}`);
       } else {
         console.error('[WA-QR] Erro ao gerar QR Code base64:', err);
@@ -316,41 +282,70 @@ app.post('/api/whatsapp/connect', async (req, res) => {
     console.log('[WA-CONNECT] Iniciando nova conexão para:', deviceId);
     const client = await startConnection(deviceId, connectionName);
 
-    // Gerar QR code e enviar na resposta
-    console.log('[WA-CONNECT] Aguardando geração do QR code...');
+    // Aguardar QR code ou conexão
+    console.log('[WA-CONNECT] Aguardando QR code ou conexão...');
     
-    // Verificar se o cliente foi criado corretamente
-    if (!client || !client.ev) {
-      console.error('[WA-CONNECT] Cliente não foi criado corretamente');
-      return res.status(500).json({ error: 'Erro ao criar cliente WhatsApp' });
-    }
-    
-    const qrPromise = new Promise((resolve) => {
-      client.ev.on('qr', async (qr) => {
-        console.log('[WA-CONNECT] QR code recebido');
-        resolve({ qr, status: 'pending' });
-      });
-
-      // Adicionar timeout para o evento QR
+    const waitForQR = new Promise((resolve) => {
+      let qrReceived = false;
+      let connected = false;
+      
+      // Listener para QR code
+      const qrListener = (qr) => {
+        if (!qrReceived) {
+          qrReceived = true;
+          console.log('[WA-CONNECT] QR code recebido');
+          qrcode.toDataURL(qr, (err, url) => {
+            if (!err) {
+              qrCodes.set(deviceId, url);
+              resolve({ type: 'qr', data: url, status: 'pending' });
+            } else {
+              console.error('[WA-CONNECT] Erro ao gerar QR code:', err);
+              resolve({ type: 'error', data: 'Erro ao gerar QR code' });
+            }
+          });
+        }
+      };
+      
+      // Listener para conexão
+      const connectionListener = (update) => {
+        if (update.connection === 'open' && !connected && !qrReceived) {
+          connected = true;
+          console.log('[WA-CONNECT] Conectado sem QR code');
+          resolve({ type: 'connected', data: null, status: 'connected' });
+        }
+      };
+      
+      client.ev.on('qr', qrListener);
+      client.ev.on('connection.update', connectionListener);
+      
+      // Timeout de 45 segundos
       setTimeout(() => {
-        console.log('[WA-CONNECT] Timeout aguardando QR code');
-        resolve(null);
-      }, 30000);
+        if (!qrReceived && !connected) {
+          console.log('[WA-CONNECT] Timeout aguardando QR code');
+          client.ev.off('qr', qrListener);
+          client.ev.off('connection.update', connectionListener);
+          resolve({ type: 'timeout', data: null, status: 'timeout' });
+        }
+      }, 45000);
     });
 
-    const result = await qrPromise;
-    console.log('[WA-CONNECT] Resultado da geração do QR code:', result ? 'Sucesso' : 'Falha');
+    const result = await waitForQR;
+    console.log('[WA-CONNECT] Resultado:', result.type);
 
-    if (result && result.qr) {
-      console.log('[WA-CONNECT] Enviando QR code para o cliente');
+    if (result.type === 'qr') {
       return res.status(200).json({ 
         message: 'QR Code gerado', 
         deviceId,
-        qr: result.qr,
+        qr: result.data,
         status: result.status
       });
+    } else if (result.type === 'connected') {
+      return res.status(200).json({ 
+        message: 'Conectado com sucesso', 
+        deviceId,
+        status: 'connected'
+      });
     } else {
-      console.log('[WA-CONNECT] Nenhum QR code gerado, enviando resposta padrão');
       return res.status(200).json({ 
         message: 'Conexão iniciada, aguardando QR Code', 
         deviceId,
