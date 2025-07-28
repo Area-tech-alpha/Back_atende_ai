@@ -8,8 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build:back": "tsc --project tsconfig.node.json",
-    "build": "npm run build:back && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "dev:all": "concurrently \"node server.js\" \"vite\"",
     "job": "node processScheduledMessages.js",
