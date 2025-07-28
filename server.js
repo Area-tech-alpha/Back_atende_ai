@@ -9,7 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import crypto from 'crypto';
-import { rimraf } from 'rimraf';
+import rimraf from 'rimraf';
 import mistralService from './src/services/mistralService.js';
 import { setChatbot, removeChatbot, toggleChatbot, getChatbot, listChatbots } from './src/config/chatbots.js';
 import { fileURLToPath } from 'url';
@@ -78,7 +78,7 @@ const startConnection = async (deviceId, connection_name) => {
   if (fs.existsSync(authFolder)) {
     console.log('[WA-START] Limpando pasta de autenticação existente');
     try {
-      rimraf.sync(authFolder);
+      rimraf(authFolder);
       console.log('[WA-START] Pasta de autenticação limpa');
     } catch (err) {
       console.error('[WA-START] Erro ao limpar pasta de autenticação:', err);
@@ -549,7 +549,7 @@ app.post('/api/whatsapp/clear-all', async (req, res) => {
     const authDir = path.join(__dirname, 'auth');
     if (fs.existsSync(authDir)) {
       try {
-        rimraf.sync(authDir);
+        rimraf(authDir);
         console.log('[WA-CLEAR] Todas as pastas de autenticação removidas');
       } catch (err) {
         console.error('[WA-CLEAR] Erro ao remover pastas de autenticação:', err);
