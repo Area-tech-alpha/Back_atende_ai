@@ -82,7 +82,7 @@ const startConnection = async (deviceId, connection_name) => {
   if (connections.has(deviceId)) {
     const existing = connections.get(deviceId);
     if (existing.status !== 'loggedOut' && existing.status !== 'disconnected') {
-      console.warn(`[WA-CONNECT] Já existe uma conexão ativa para deviceId=${deviceId}`, status=${existing.status});
+      console.warn(`[WA-CONNECT] Já existe uma conexão ativa para deviceId=${deviceId}`);
       return;
     }
 
