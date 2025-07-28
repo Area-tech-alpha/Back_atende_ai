@@ -73,19 +73,30 @@ const startConnection = async (deviceId, connection_name) => {
   console.log('[WA-START] Iniciando conexão para deviceId:', deviceId);
   console.log('[DEBUG] Criando pasta de autenticação para deviceId:', deviceId); 
   const authFolder = path.join(__dirname, 'auth', deviceId);
+  
+  // Limpar pasta de autenticação se existir (força nova conexão)
+  if (fs.existsSync(authFolder)) {
+    console.log('[WA-START] Limpando pasta de autenticação existente');
+    rimraf(authFolder, (err) => {
+      if (err) {
+        console.error('[WA-START] Erro ao limpar pasta de autenticação:', err);
+      } else {
+        console.log('[WA-START] Pasta de autenticação limpa');
+      }
+    });
+  }
+  
   fs.mkdirSync(authFolder, { recursive: true });
 
   const { state, saveCreds } = await useMultiFileAuthState(authFolder);
   console.log('[WA-START] Estado de autenticação carregado:', state.creds ? 'Autenticado' : 'Não autenticado');
 
   try {
+  // Sempre limpar conexão existente para forçar nova conexão
   if (connections.has(deviceId)) {
     const existing = connections.get(deviceId);
-    if (existing.status !== 'loggedOut' && existing.status !== 'disconnected') {
-      console.warn(`[WA-CONNECT] Já existe uma conexão ativa para deviceId=${deviceId}`);
-      return;
-    }
-
+    console.log(`[WA-CONNECT] Limpando conexão existente para deviceId=${deviceId}, status: ${existing.status}`);
+    
     if (existing.client?.end) {
       try {
         await existing.client.end();
@@ -94,6 +105,10 @@ const startConnection = async (deviceId, connection_name) => {
         console.error(`[WA-CONNECT] Erro ao encerrar cliente anterior para ${deviceId}`, err);
       }
     }
+    
+    // Remover do mapa de conexões
+    connections.delete(deviceId);
+    qrCodes.delete(deviceId);
   }
 
   const client = makeWASocket({
@@ -268,6 +283,13 @@ app.post('/api/whatsapp/connect', async (req, res) => {
 
     // Gerar QR code e enviar na resposta
     console.log('[WA-CONNECT] Aguardando geração do QR code...');
+    
+    // Verificar se o cliente foi criado corretamente
+    if (!client || !client.ev) {
+      console.error('[WA-CONNECT] Cliente não foi criado corretamente');
+      return res.status(500).json({ error: 'Erro ao criar cliente WhatsApp' });
+    }
+    
     const qrPromise = new Promise((resolve) => {
       client.ev.on('qr', async (qr) => {
         console.log('[WA-CONNECT] QR code recebido');
@@ -501,6 +523,46 @@ app.delete('/api/whatsapp/session/:deviceId', (req, res) => {
     connections.delete(deviceId);
     return res.json({ message: 'Sessão deletada com sucesso' });
   });
+});
+
+// Rota para limpar todas as conexões (útil para debug)
+app.post('/api/whatsapp/clear-all', async (req, res) => {
+  try {
+    console.log('[WA-CLEAR] Limpando todas as conexões...');
+    
+    // Desconectar todos os clientes
+    for (const [deviceId, connection] of connections.entries()) {
+      if (connection.client?.end) {
+        try {
+          await connection.client.end();
+          console.log(`[WA-CLEAR] Cliente ${deviceId} desconectado`);
+        } catch (err) {
+          console.error(`[WA-CLEAR] Erro ao desconectar ${deviceId}:`, err);
+        }
+      }
+    }
+    
+    // Limpar mapas
+    connections.clear();
+    qrCodes.clear();
+    
+    // Limpar todas as pastas de autenticação
+    const authDir = path.join(__dirname, 'auth');
+    if (fs.existsSync(authDir)) {
+      rimraf(authDir, (err) => {
+        if (err) {
+          console.error('[WA-CLEAR] Erro ao remover pastas de autenticação:', err);
+        } else {
+          console.log('[WA-CLEAR] Todas as pastas de autenticação removidas');
+        }
+      });
+    }
+    
+    return res.status(200).json({ message: 'Todas as conexões foram limpas' });
+  } catch (error) {
+    console.error('[WA-CLEAR] Erro ao limpar conexões:', error);
+    return res.status(500).json({ error: 'Erro ao limpar conexões' });
+  }
 });
 
 // Adicionar novas rotas para gerenciar chatbots
