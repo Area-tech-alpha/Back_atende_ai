@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import express from 'express';
 import cors from 'cors';
-import makeWASocket, { useMultiFileAuthState, DisconnectReason } from '@whiskeysockets/baileys';
+import { useMultiFileAuthState, DisconnectReason, makeWASocket } from '@whiskeysockets/baileys';
 import Boom from '@hapi/boom';
 import qrcode from 'qrcode';
 import fs from 'fs';
