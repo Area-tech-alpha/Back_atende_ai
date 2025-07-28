@@ -2,17 +2,20 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Instalar dependências do sistema
-RUN apk add --no-cache python3 make g++
+# Instalar dependências do sistema necessárias para o Baileys
+RUN apk add --no-cache python3 make g++ libc6-compat
 
 # Copiar arquivos de dependências
 COPY package*.json ./
 
 # Instalar dependências
-RUN npm install
+RUN npm ci --only=production
 
 # Copiar o resto dos arquivos
 COPY . .
+
+# Criar pasta auth com permissões adequadas
+RUN mkdir -p auth && chmod 755 auth
 
 # Configurar variáveis de ambiente
 ENV NODE_ENV=production
@@ -25,4 +28,4 @@ RUN npm run build
 EXPOSE 3000
 
 # Iniciar a aplicação
-CMD ["npm", "start"] 
+CMD ["node", "server.js"] 

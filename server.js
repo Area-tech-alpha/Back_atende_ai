@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import express from 'express';
 import cors from 'cors';
-import { useMultiFileAuthState, DisconnectReason, makeWASocket } from '@whiskeysockets/baileys';
+import { useMultiFileAuthState, DisconnectReason, makeWASocket, isJidBroadcast } from '@whiskeysockets/baileys';
 import Boom from '@hapi/boom';
 import qrcode from 'qrcode';
 import fs from 'fs';
@@ -73,7 +73,14 @@ const startConnection = async (deviceId, connection_name) => {
   console.log('[WA-START] Iniciando conexão para deviceId:', deviceId);
   console.log('[DEBUG] Criando pasta de autenticação para deviceId:', deviceId); 
   const authFolder = path.join(__dirname, 'auth', deviceId);
-  fs.mkdirSync(authFolder, { recursive: true });
+  
+  try {
+    fs.mkdirSync(authFolder, { recursive: true });
+    console.log('[DEBUG] Pasta de autenticação criada/verificada:', authFolder);
+  } catch (err) {
+    console.error('[ERROR] Erro ao criar pasta de autenticação:', err);
+    throw new Error(`Falha ao criar pasta de autenticação: ${err.message}`);
+  }
 
   const { state, saveCreds } = await useMultiFileAuthState(authFolder);
   console.log('[WA-START] Estado de autenticação carregado:', state.creds ? 'Autenticado' : 'Não autenticado');
@@ -100,11 +107,36 @@ const startConnection = async (deviceId, connection_name) => {
     auth: state,
     printQRInTerminal: true,
     browser: ['Chrome (Linux)', '', ''],
-    connectTimeoutMs: 60000,
-    defaultQueryTimeoutMs: 60000,
-    retryRequestDelayMs: 250,
+    connectTimeoutMs: 120000, // Aumentado para 2 minutos
+    defaultQueryTimeoutMs: 120000, // Aumentado para 2 minutos
+    retryRequestDelayMs: 500, // Aumentado para 500ms
     markOnlineOnConnect: false,
-    deviceId: deviceId
+    deviceId: deviceId,
+    // Configurações específicas para Railway
+    keepAliveIntervalMs: 30000,
+    emitOwnEvents: false,
+    shouldIgnoreJid: jid => isJidBroadcast(jid),
+    patchMessageBeforeSending: (msg) => {
+      const requiresPatch = !!(
+        msg.buttonsMessage 
+        || msg.templateMessage
+        || msg.listMessage
+      );
+      if (requiresPatch) {
+        msg = {
+          viewOnceMessage: {
+            message: {
+              messageContextInfo: {
+                deviceListMetadataVersion: 2,
+                deviceListMetadata: {},
+              },
+              ...msg,
+            },
+          },
+        };
+      }
+      return msg;
+    },
   });
 
   const prevConnection = connections.get(deviceId);
@@ -147,6 +179,11 @@ const startConnection = async (deviceId, connection_name) => {
     if (update.qr) {
       qrCodes.set(deviceId, update.qr);
       console.log(`[WA-QR] QR Code string salvo via connection.update para deviceId=${deviceId}`);
+    }
+
+    // Log de erros específicos
+    if (update.lastError) {
+      console.error(`[WA-ERROR] Erro na conexão ${deviceId}:`, update.lastError);
     }
   });
 
@@ -640,6 +677,15 @@ app.get('/api/debug/caches', (req, res) => {
       details: error.message
     });
   }
+});
+
+// Rota de healthcheck específica
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    connections: connections.size
+  });
 });
 
 // Rota para servir o frontend em todas as outras rotas
