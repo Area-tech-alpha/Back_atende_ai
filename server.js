@@ -78,6 +78,24 @@ const startConnection = async (deviceId, connection_name) => {
   const { state, saveCreds } = await useMultiFileAuthState(authFolder);
   console.log('[WA-START] Estado de autenticação carregado:', state.creds ? 'Autenticado' : 'Não autenticado');
 
+  try {
+  if (connections.has(deviceId)) {
+    const existing = connections.get(deviceId);
+    if (existing.status !== 'loggedOut' && existing.status !== 'disconnected') {
+      console.warn(`[WA-CONNECT] Já existe uma conexão ativa para deviceId=${deviceId}`, status=${existing.status});
+      return;
+    }
+
+    if (existing.client?.end) {
+      try {
+        await existing.client.end();
+        console.log(`[WA-CONNECT] Cliente anterior encerrado para deviceId=${deviceId}`);
+      } catch (err) {
+        console.error(`[WA-CONNECT] Erro ao encerrar cliente anterior para ${deviceId}`, err);
+      }
+    }
+  }
+
   const client = makeWASocket({
     auth: state,
     printQRInTerminal: true,
@@ -89,18 +107,16 @@ const startConnection = async (deviceId, connection_name) => {
     deviceId: deviceId
   });
 
-  // Sempre tenta preservar o nome já salvo, ou usa o novo
-  const prev = connections.get(deviceId);
-  const nameToSave = connection_name || (prev && prev.connection_name);
+  const prevConnection = connections.get(deviceId);
+  const nameToSave = connection_name || (prevConnection && prevConnection.connection_name);
   connections.set(deviceId, { client, status: 'connecting', deviceId, connection_name: nameToSave });
   console.log('[WA-START] Cliente criado e adicionado ao mapa de conexões');
 
   client.ev.on('connection.update', async (update) => {
-    console.log(`[WA-UPDATE] ${deviceId}:`, update);
+    console.log(`[WA-UPDATE] ${deviceId}:, update`);
 
-    // Recupera o nome salvo, se existir
-    const prev = connections.get(deviceId);
-    const connection_name = prev && prev.connection_name ? prev.connection_name : undefined;
+    const current = connections.get(deviceId);
+    const connection_name = current?.connection_name;
 
     if (update.connection === 'open') {
       console.log(`[WA-CONNECTED] deviceId=${deviceId}`);
@@ -109,11 +125,15 @@ const startConnection = async (deviceId, connection_name) => {
     } else if (update.connection === 'close') {
       const statusCode = update.lastDisconnect?.error?.output?.statusCode;
       const reason = update.lastDisconnect?.error?.message || 'Desconhecido';
+      const stack = update.lastDisconnect?.error?.stack;
 
       console.warn(`[WA-DISCONNECTED] deviceId=${deviceId} - Motivo: ${reason}`);
+      if (stack) {
+        console.error([WA-DISCONNECT-DETAIL], stack);
+      }
 
       if (statusCode !== DisconnectReason.loggedOut) {
-        console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId}`);
+        console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId}...`);
         connections.set(deviceId, { client, status: 'reconnecting', deviceId, connection_name });
         setTimeout(() => {
           startConnection(deviceId, connection_name);
@@ -130,6 +150,19 @@ const startConnection = async (deviceId, connection_name) => {
     }
   });
 
+  client.ev.on('creds.update', saveCreds);
+  console.log('[WA-START] Eventos de conexão e credenciais configurados');
+
+  client.ev.on('qr', (qr) => {
+    qrcode.toDataURL(qr, (err, url) => {
+      if (!err) {
+        qrCodes.set(deviceId, url);
+        console.log(`[WA-QR] QR Code base64 salvo para deviceId=${deviceId}`);
+      } else {
+        console.error('[WA-QR] Erro ao gerar QR Code base64:', err);
+      }
+    });
+  });
   client.ev.on('creds.update', saveCreds);
   console.log('[WA-START] Eventos de conexão e credenciais configurados');
 
@@ -168,6 +201,11 @@ const startConnection = async (deviceId, connection_name) => {
   });
 
   return client;
+} catch (err) {
+  console.error(`[WA-ERROR] Erro ao iniciar cliente para deviceId=${deviceId}`, err);
+}
+
+
 };
 
 // Função para gerar QR Code
