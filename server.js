@@ -188,6 +188,7 @@ const startConnection = async (deviceId, connection_name) => {
       if (!err) {
         qrCodes.set(deviceId, url);
         console.log(`[WA-QR] QR Code base64 salvo para deviceId=${deviceId}`);
+        console.log(`[WA-QR] Total de QR codes salvos: ${qrCodes.size}`);
       } else {
         console.error('[WA-QR] Erro ao gerar QR Code base64:', err);
       }
@@ -524,12 +525,28 @@ app.post('/api/whatsapp/send', async (req, res) => {
 app.get('/api/whatsapp/qr/:deviceId', (req, res) => {
   const { deviceId } = req.params;
   console.log('[DEBUG] Buscando QR para deviceId:', deviceId, 'Map keys:', Array.from(qrCodes.keys()));
+  
+  // Verificar se existe conexão para este deviceId
+  const connection = connections.get(deviceId);
+  console.log('[DEBUG] Conexão encontrada:', connection ? connection.status : 'não encontrada');
+  
   const qr = qrCodes.get(deviceId);
   if (qr) {
+    console.log('[DEBUG] QR code encontrado para deviceId:', deviceId);
     return res.json({ qr });
   }
+  
   console.log('[DEBUG] QR code não encontrado para deviceId:', deviceId);
-  return res.status(404).json({ error: 'QR code não encontrado' });
+  return res.status(404).json({ 
+    error: 'QR code não encontrado',
+    debug: {
+      deviceId,
+      hasConnection: !!connection,
+      connectionStatus: connection?.status,
+      qrCodesKeys: Array.from(qrCodes.keys()),
+      totalConnections: connections.size
+    }
+  });
 });
 
 // Rota para deletar sessão
@@ -740,6 +757,28 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     connections: connections.size
   });
+});
+
+// Rota de debug para verificar estado das conexões
+app.get('/api/debug/connections', (req, res) => {
+  try {
+    const connectionsInfo = Array.from(connections.entries()).map(([deviceId, connection]) => ({
+      deviceId,
+      status: connection.status,
+      hasQR: qrCodes.has(deviceId),
+      connectionName: connection.connection_name
+    }));
+    
+    return res.status(200).json({
+      totalConnections: connections.size,
+      totalQRCodes: qrCodes.size,
+      connections: connectionsInfo,
+      qrCodesKeys: Array.from(qrCodes.keys())
+    });
+  } catch (error) {
+    console.error('Erro ao obter debug das conexões:', error);
+    return res.status(500).json({ error: 'Erro ao obter debug das conexões' });
+  }
 });
 
 // Rota para servir o frontend em todas as outras rotas
