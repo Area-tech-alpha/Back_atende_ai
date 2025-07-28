@@ -129,7 +129,7 @@ const startConnection = async (deviceId, connection_name) => {
 
       console.warn(`[WA-DISCONNECTED] deviceId=${deviceId} - Motivo: ${reason}`);
       if (stack) {
-        console.error([WA-DISCONNECT-DETAIL], stack);
+        console.error(`[WA-DISCONNECT-DETAIL]`, stack);
       }
 
       if (statusCode !== DisconnectReason.loggedOut) {
