@@ -77,13 +77,12 @@ const startConnection = async (deviceId, connection_name) => {
   // Limpar pasta de autenticação se existir (força nova conexão)
   if (fs.existsSync(authFolder)) {
     console.log('[WA-START] Limpando pasta de autenticação existente');
-    rimraf(authFolder, (err) => {
-      if (err) {
-        console.error('[WA-START] Erro ao limpar pasta de autenticação:', err);
-      } else {
-        console.log('[WA-START] Pasta de autenticação limpa');
-      }
-    });
+    try {
+      rimraf.sync(authFolder);
+      console.log('[WA-START] Pasta de autenticação limpa');
+    } catch (err) {
+      console.error('[WA-START] Erro ao limpar pasta de autenticação:', err);
+    }
   }
   
   fs.mkdirSync(authFolder, { recursive: true });
@@ -549,13 +548,12 @@ app.post('/api/whatsapp/clear-all', async (req, res) => {
     // Limpar todas as pastas de autenticação
     const authDir = path.join(__dirname, 'auth');
     if (fs.existsSync(authDir)) {
-      rimraf(authDir, (err) => {
-        if (err) {
-          console.error('[WA-CLEAR] Erro ao remover pastas de autenticação:', err);
-        } else {
-          console.log('[WA-CLEAR] Todas as pastas de autenticação removidas');
-        }
-      });
+      try {
+        rimraf.sync(authDir);
+        console.log('[WA-CLEAR] Todas as pastas de autenticação removidas');
+      } catch (err) {
+        console.error('[WA-CLEAR] Erro ao remover pastas de autenticação:', err);
+      }
     }
     
     return res.status(200).json({ message: 'Todas as conexões foram limpas' });
