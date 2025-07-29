@@ -13,7 +13,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'http://lionchat.tech',
+        target: process.env.VITE_API_URL ||'http://localhost:3000',
         changeOrigin: true,
       },
     },

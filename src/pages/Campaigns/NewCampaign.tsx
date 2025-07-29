@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Upload, Image as ImageIcon, X, Loader2, ArrowLeft } from 'lucide-react';
+import { X, Loader2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { API_ENDPOINTS } from '../../config/api';
 
 interface Contact {
   name: string;
@@ -16,28 +15,10 @@ interface ContactList {
   contatos: Contact[];
 }
 
-const formatPhoneNumber = (phone: string): string => {
-  // Remove qualquer caractere não numérico
-  let cleaned = phone.replace(/\D/g, '');
-
-  // Garante que começa com 55
-  if (!cleaned.startsWith('55')) {
-    cleaned = '55' + cleaned;
-  }
-
-  // Se tiver 13 dígitos (ex: 5561985515084), remove o nono dígito (primeiro após o DDD)
-  if (cleaned.length === 13) {
-    cleaned = cleaned.slice(0, 5) + cleaned.slice(6);
-  }
-
-  return cleaned;
-};
-
 const NewCampaign = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const [campaignName, setCampaignName] = useState('');
@@ -141,25 +122,6 @@ const NewCampaign = () => {
   }, []);
 
 
-  const handleCSVUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const lines = text.split('\n');
-      const parsedContacts: Contact[] = lines
-        .filter(line => line.trim())
-        .map(line => {
-          const [name, phone] = line.split(',').map(item => item.trim());
-          return { name, phone };
-        });
-      setContacts(parsedContacts);
-    };
-    reader.readAsText(file);
-  };
-
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -175,73 +137,6 @@ const NewCampaign = () => {
   const removeImage = () => {
     setSelectedImage(null);
     setImagePreview('');
-    if (imageInputRef.current) {
-      imageInputRef.current.value = '';
-    }
-  };
-
-  const sendMessageWithRetry = async (deviceId: string, number: string, message: string, imagemUrl?: string, maxRetries = 3) => {
-    let lastError = null;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`📤 Tentativa ${attempt}/${maxRetries} - Enviando mensagem para ${number}...`);
-        
-        const response = await fetch(API_ENDPOINTS.whatsapp.send, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            deviceId,
-            number,
-            message,
-            imagemUrl
-          })
-        });
-
-        console.log(`📥 Resposta recebida: HTTP ${response.status}`);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
-        }
-
-        // Aguarda a resposta completa e verifica se foi realmente um sucesso
-        const responseData = await response.json();
-        console.log(`✅ Confirmação de envio recebida:`, responseData);
-
-        return { success: true, data: responseData };
-      } catch (error) {
-        lastError = error;
-        console.error(`[TENTATIVA ${attempt}/${maxRetries}] Erro ao enviar mensagem para ${number}:`, error);
-        
-        // Aguarda um tempo crescente entre as tentativas (1s, 2s, 4s)
-        if (attempt < maxRetries) {
-          console.log(`⏳ Aguardando ${Math.pow(2, attempt - 1)} segundos antes da próxima tentativa...`);
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 1000));
-        }
-      }
-    }
-
-    return { 
-      success: false, 
-      error: lastError instanceof Error ? lastError.message : String(lastError)
-    };
-  };
-
-  // Função para remover números duplicados de uma lista de contatos
-  const removeDuplicateContacts = (contatos: Contact[]) => {
-    const uniqueContacts = new Map<string, Contact>();
-    
-    for (const contact of contatos) {
-      const formattedPhone = formatPhoneNumber(contact.phone);
-      if (!uniqueContacts.has(formattedPhone)) {
-        uniqueContacts.set(formattedPhone, contact);
-      }
-    }
-    
-    return Array.from(uniqueContacts.values());
   };
 
   const handleSubmit = async (e: React.FormEvent, draft = false) => {

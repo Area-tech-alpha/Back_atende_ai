@@ -83,9 +83,39 @@ function formatPhoneNumber(phone) {
 
 const startConnection = async (deviceId, connection_name) => {
   console.log("[WA-START] Iniciando conexão para deviceId:", deviceId);
-  console.log("[DEBUG] Criando pasta de autenticação para deviceId:", deviceId);
+  
   const authFolder = path.join(__dirname, "auth", deviceId);
-  fs.mkdirSync(authFolder, { recursive: true });
+  
+  // Verificar se a pasta existe e tem dados válidos
+  if (fs.existsSync(authFolder)) {
+    console.log("[WA-START] Pasta de autenticação encontrada para deviceId:", deviceId);
+    
+    // Verificar se há arquivos de credenciais
+    const credsFile = path.join(authFolder, "creds.json");
+    if (fs.existsSync(credsFile)) {
+      try {
+        const credsData = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+        if (credsData.me && credsData.me.id) {
+          console.log("[WA-START] Credenciais válidas encontradas para deviceId:", deviceId);
+        } else {
+          console.log("[WA-START] Credenciais inválidas, removendo pasta de autenticação");
+          fs.rmSync(authFolder, { recursive: true, force: true });
+          fs.mkdirSync(authFolder, { recursive: true });
+        }
+      } catch (error) {
+        console.log("[WA-START] Erro ao ler credenciais, removendo pasta de autenticação");
+        fs.rmSync(authFolder, { recursive: true, force: true });
+        fs.mkdirSync(authFolder, { recursive: true });
+      }
+    } else {
+      console.log("[WA-START] Arquivo de credenciais não encontrado, criando nova pasta");
+      fs.rmSync(authFolder, { recursive: true, force: true });
+      fs.mkdirSync(authFolder, { recursive: true });
+    }
+  } else {
+    console.log("[WA-START] Criando nova pasta de autenticação para deviceId:", deviceId);
+    fs.mkdirSync(authFolder, { recursive: true });
+  }
 
   const { state, saveCreds } = await useMultiFileAuthState(authFolder);
   console.log(
@@ -152,14 +182,25 @@ const startConnection = async (deviceId, connection_name) => {
         }, 5000);
       } else {
         console.log(
-          `[WA-LOGOUT] Sessão do deviceId=${deviceId} desconectada permanentemente.`
+          `[WA-LOGOUT] Sessão do deviceId=${deviceId} desconectada permanentemente. Limpando dados de autenticação...`
         );
-        connections.set(deviceId, {
-          client,
-          status: "loggedOut",
-          deviceId,
-          connection_name,
-        });
+        
+        // Limpar dados de autenticação quando loggedOut
+        try {
+          const authFolder = path.join(__dirname, "auth", deviceId);
+          if (fs.existsSync(authFolder)) {
+            fs.rmSync(authFolder, { recursive: true, force: true });
+            console.log(`[WA-LOGOUT] Pasta de autenticação removida para deviceId=${deviceId}`);
+          }
+        } catch (error) {
+          console.error(`[WA-LOGOUT] Erro ao limpar pasta de autenticação:`, error);
+        }
+        
+        // Remover do mapa de conexões
+        connections.delete(deviceId);
+        qrCodes.delete(deviceId);
+        
+        console.log(`[WA-LOGOUT] DeviceId=${deviceId} removido dos mapas de conexão`);
       }
     }
 
@@ -377,6 +418,39 @@ app.get("/api/whatsapp/devices", (req, res) => {
   }
 });
 
+// Rota para limpar dados de autenticação de um dispositivo
+app.delete("/api/whatsapp/devices/:deviceId/auth", (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    
+    if (!deviceId) {
+      return res.status(400).json({ error: "ID do dispositivo não fornecido" });
+    }
+
+    // Limpar pasta de autenticação
+    const authFolder = path.join(__dirname, "auth", deviceId);
+    if (fs.existsSync(authFolder)) {
+      fs.rmSync(authFolder, { recursive: true, force: true });
+      console.log(`[CLEANUP] Pasta de autenticação removida para deviceId=${deviceId}`);
+    }
+
+    // Remover dos mapas
+    connections.delete(deviceId);
+    qrCodes.delete(deviceId);
+
+    return res.status(200).json({ 
+      message: "Dados de autenticação limpos com sucesso",
+      deviceId 
+    });
+  } catch (error) {
+    console.error("Erro ao limpar dados de autenticação:", error);
+    return res.status(500).json({
+      error: "Erro ao limpar dados de autenticação",
+      details: error.message,
+    });
+  }
+});
+
 // Rota para enviar mensagem
 app.post("/api/whatsapp/send", async (req, res) => {
   try {
@@ -402,20 +476,34 @@ app.post("/api/whatsapp/send", async (req, res) => {
       });
     }
 
+    console.log("[SEND] Verificando conexão para deviceId:", deviceId);
     const connection = connections.get(deviceId);
     if (!connection) {
       console.error("[SEND] Dispositivo não encontrado:", deviceId);
       return res.status(404).json({ error: "Dispositivo não encontrado" });
     }
 
+    console.log("[SEND] Status da conexão:", connection.status);
+    if (connection.status !== "connected") {
+      console.error("[SEND] Conexão não está conectada. Status:", connection.status);
+      return res.status(400).json({ 
+        error: "Conexão não está pronta", 
+        details: `Status atual: ${connection.status}` 
+      });
+    }
+
     // Formata o número para o padrão desejado
+    console.log("[SEND] Número original:", number);
     const formattedNumberRaw = formatPhoneNumber(number);
+    console.log("[SEND] Número formatado:", formattedNumberRaw);
     const formattedNumber = formattedNumberRaw.includes("@s.whatsapp.net")
       ? formattedNumberRaw
       : `${formattedNumberRaw}@s.whatsapp.net`;
+    console.log("[SEND] Número final para envio:", formattedNumber);
 
     // Chave única para controle de duplicatas
     const sendKey = `${deviceId}_${formattedNumber}`;
+    console.log("[SEND] Chave de controle:", sendKey);
 
     // Verifica se já existe um envio em andamento para este número
     if (pendingSends.has(sendKey)) {
@@ -450,6 +538,7 @@ app.post("/api/whatsapp/send", async (req, res) => {
     // Cria uma Promise para controlar o envio
     const sendPromise = (async () => {
       try {
+        console.log("[SEND] Iniciando verificação se número tem WhatsApp...");
         // Verifica se o número tem WhatsApp
         const exists = await connection.client.onWhatsApp(formattedNumber);
         console.log("[SEND] Resultado onWhatsApp:", exists);
@@ -461,6 +550,7 @@ app.post("/api/whatsapp/send", async (req, res) => {
           throw new Error("O número informado não possui WhatsApp.");
         }
 
+        console.log("[SEND] Número possui WhatsApp, preparando envio...");
         let result;
 
         if (imagemUrl) {
@@ -470,13 +560,16 @@ app.post("/api/whatsapp/send", async (req, res) => {
             responseType: "arraybuffer",
           });
           const imageBuffer = Buffer.from(response.data, "binary");
+          console.log("[SEND] Imagem baixada, tamanho:", imageBuffer.length, "bytes");
 
+          console.log("[SEND] Enviando mensagem com imagem...");
           result = await connection.client.sendMessage(formattedNumber, {
             image: imageBuffer,
             caption: caption || message || "",
           });
           console.log("[SEND] Mensagem com imagem enviada:", result);
         } else {
+          console.log("[SEND] Enviando mensagem de texto:", message);
           result = await connection.client.sendMessage(formattedNumber, {
             text: message,
           });
@@ -485,6 +578,7 @@ app.post("/api/whatsapp/send", async (req, res) => {
 
         // Registra o envio bem-sucedido
         recentSends.set(sendKey, now);
+        console.log("[SEND] Envio registrado como bem-sucedido");
 
         return {
           success: true,
@@ -492,21 +586,27 @@ app.post("/api/whatsapp/send", async (req, res) => {
         };
       } catch (error) {
         console.error("[SEND] Erro durante envio:", error);
+        console.error("[SEND] Stack trace:", error.stack);
         throw error;
       } finally {
         // Remove da lista de envios pendentes
         pendingSends.delete(sendKey);
+        console.log("[SEND] Removido da lista de envios pendentes");
       }
     })();
 
     // Armazena a Promise para evitar envios duplicados
     pendingSends.set(sendKey, sendPromise);
+    console.log("[SEND] Promise armazenada para controle de duplicatas");
 
     // Aguarda o resultado
+    console.log("[SEND] Aguardando resultado do envio...");
     const result = await sendPromise;
+    console.log("[SEND] Resultado final:", result);
     return res.status(200).json(result);
   } catch (error) {
     console.error("[SEND] Erro ao enviar mensagem:", error);
+    console.error("[SEND] Stack trace completo:", error.stack);
     return res.status(500).json({
       error: "Erro ao enviar mensagem",
       details: error.message,

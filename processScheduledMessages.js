@@ -1,12 +1,15 @@
-import { supabase } from './src/lib/supabase.js';
-import { sendMessageWithRetry } from "../utils/sendMessageWithRetry.js";
-import { getCurrentDateTime } from "../utils/getCurrentDateTime.js";
+import { supabase } from './src/lib/supabase-backend.js';
+import { sendMessageWithRetry } from "./utils/sendMessageWithRetry.js";
+import { getCurrentDateTime } from "./utils/getCurrentDateTime.js";
 
 export async function processScheduledMessages() {
+  console.log(`[${getCurrentDateTime()}] TESTE: Função processScheduledMessages iniciada`);
+  console.log(`[${getCurrentDateTime()}] Iniciando processamento de mensagens agendadas...`);
+  
   const { data: messages, error: fetchError } = await supabase
     .from("mensagem_evolution")
     .select("*")
-    .eq("status", "Scheduled");
+    .in("status", ["Scheduled", null]);
 
   if (fetchError) {
     console.error(
@@ -16,36 +19,86 @@ export async function processScheduledMessages() {
     return;
   }
 
+  console.log(`[${getCurrentDateTime()}] Encontradas ${messages?.length || 0} campanhas agendadas`);
+
+  if (!messages || messages.length === 0) {
+    console.log(`[${getCurrentDateTime()}] Nenhuma campanha agendada encontrada`);
+    return;
+  }
+
   for (const msg of messages) {
     try {
       console.log(
-        `[${getCurrentDateTime()}] Processando campanha ID ${msg.id} (${
-          msg.nome
-        })`
+        `[${getCurrentDateTime()}] Processando campanha ID ${msg.id} (${msg.name})`
       );
 
       // Buscar envios pendentes já cadastrados
-      const { data: enviosPendentes, error: erroEnvio } = await supabase
+      let { data: enviosPendentes, error: erroEnvio } = await supabase
         .from("envio_evolution")
         .select("*")
         .eq("id_mensagem", msg.id)
         .in("status", [null, "Scheduled"]);
 
-      if (erroEnvio) throw erroEnvio;
+      if (erroEnvio) {
+        console.error(`[${getCurrentDateTime()}] Erro ao buscar envios pendentes:`, erroEnvio);
+        throw erroEnvio;
+      }
 
+      // Se não há envios pendentes, criar automaticamente
       if (!enviosPendentes || enviosPendentes.length === 0) {
         console.log(
-          `[${getCurrentDateTime()}] Nenhum envio pendente encontrado para a campanha ${
-            msg.id
-          }`
+          `[${getCurrentDateTime()}] Nenhum envio pendente encontrado para a campanha ${msg.id}. Criando envios automaticamente...`
         );
-        continue;
+        
+        // Buscar contatos da campanha
+        const { data: contatosData, error: contatosError } = await supabase
+          .from("contato_evolution")
+          .select("contatos")
+          .eq("id", msg.contatos)
+          .single();
+        
+        if (contatosError || !contatosData) {
+          console.error(`[${getCurrentDateTime()}] Erro ao buscar contatos para campanha ${msg.id}:`, contatosError);
+          continue;
+        }
+        
+        // Parsear contatos
+        let contatos = [];
+        try {
+          contatos = JSON.parse(contatosData.contatos);
+        } catch (error) {
+          console.error(`[${getCurrentDateTime()}] Erro ao parsear contatos para campanha ${msg.id}:`, error);
+          continue;
+        }
+        
+        if (!contatos || contatos.length === 0) {
+          console.log(`[${getCurrentDateTime()}] Nenhum contato encontrado para campanha ${msg.id}`);
+          continue;
+        }
+        
+        // Criar envios para cada contato
+        const enviosParaCriar = contatos.map(contato => ({
+          id_mensagem: msg.id,
+          contato: contato.phone,
+          status: "Scheduled"
+        }));
+        
+        const { data: novosEnvios, error: criarEnviosError } = await supabase
+          .from("envio_evolution")
+          .insert(enviosParaCriar)
+          .select();
+        
+        if (criarEnviosError) {
+          console.error(`[${getCurrentDateTime()}] Erro ao criar envios para campanha ${msg.id}:`, criarEnviosError);
+          continue;
+        }
+        
+        console.log(`[${getCurrentDateTime()}] Criados ${novosEnvios.length} envios para campanha ${msg.id}`);
+        enviosPendentes = novosEnvios;
       }
 
       console.log(
-        `[${getCurrentDateTime()}] ${
-          enviosPendentes.length
-        } envios pendentes encontrados`
+        `[${getCurrentDateTime()}] ${enviosPendentes.length} envios pendentes encontrados`
       );
 
       let successCount = 0;
@@ -53,6 +106,7 @@ export async function processScheduledMessages() {
 
       for (const [index, envio] of enviosPendentes.entries()) {
         const contato = envio.contato;
+        console.log(`[${getCurrentDateTime()}] Processando contato: ${contato}`);
 
         if (index > 0 && msg.delay > 0) {
           console.log(
@@ -62,7 +116,7 @@ export async function processScheduledMessages() {
         }
 
         console.log(
-          `[${getCurrentDateTime()}] Enviando mensagem para ${contato}`
+          `[${getCurrentDateTime()}] Enviando mensagem para ${contato} usando device_id: ${msg.device_id}`
         );
 
         const result = await sendMessageWithRetry(
@@ -71,6 +125,8 @@ export async function processScheduledMessages() {
           msg.texto,
           msg.imagem || null
         );
+
+        console.log(`[${getCurrentDateTime()}] Resultado do envio para ${contato}:`, result);
 
         await supabase
           .from("envio_evolution")
@@ -87,9 +143,7 @@ export async function processScheduledMessages() {
         } else {
           errorCount++;
           console.error(
-            `[${getCurrentDateTime()}] Erro ao enviar para ${contato}: ${
-              result.error
-            }`
+            `[${getCurrentDateTime()}] Erro ao enviar para ${contato}: ${result.error}`
           );
         }
       }
@@ -108,9 +162,7 @@ export async function processScheduledMessages() {
         .eq("id", msg.id);
 
       console.log(
-        `[${getCurrentDateTime()}] Envio concluído para campanha ${
-          msg.id
-        }. Sucessos: ${successCount}, Erros: ${errorCount}`
+        `[${getCurrentDateTime()}] Envio concluído para campanha ${msg.id}. Sucessos: ${successCount}, Erros: ${errorCount}`
       );
     } catch (error) {
       console.error(
@@ -119,4 +171,10 @@ export async function processScheduledMessages() {
       );
     }
   }
+  
+  console.log(`[${getCurrentDateTime()}] Processamento de mensagens agendadas concluído`);
 }
+
+// Executar se chamado diretamente
+console.log("Executando processScheduledMessages...");
+processScheduledMessages().catch(console.error);
