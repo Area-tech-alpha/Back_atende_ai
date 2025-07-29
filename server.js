@@ -62,6 +62,40 @@ const qrCodes = new Map(); // deviceId -> qr string
 const pendingSends = new Map(); // deviceId_number -> Promise
 const recentSends = new Map(); // deviceId_number -> timestamp
 
+// Sistema de controle de reconexões
+const reconnectionAttempts = new Map(); // deviceId -> { count, lastAttempt, backoff }
+const MAX_RECONNECTION_ATTEMPTS = 5;
+const INITIAL_BACKOFF = 5000; // 5 segundos
+const MAX_BACKOFF = 300000; // 5 minutos
+
+function getReconnectionDelay(deviceId) {
+  const attempts = reconnectionAttempts.get(deviceId) || { count: 0, backoff: INITIAL_BACKOFF };
+  
+  if (attempts.count >= MAX_RECONNECTION_ATTEMPTS) {
+    console.log(`[WA-RECONNECT] DeviceId=${deviceId} atingiu limite máximo de tentativas. Aguardando 30 minutos...`);
+    return 1800000; // 30 minutos
+  }
+  
+  // Backoff exponencial
+  const delay = Math.min(attempts.backoff * Math.pow(2, attempts.count), MAX_BACKOFF);
+  return delay;
+}
+
+function incrementReconnectionAttempt(deviceId) {
+  const attempts = reconnectionAttempts.get(deviceId) || { count: 0, backoff: INITIAL_BACKOFF };
+  attempts.count++;
+  attempts.lastAttempt = Date.now();
+  attempts.backoff = Math.min(attempts.backoff * 2, MAX_BACKOFF);
+  reconnectionAttempts.set(deviceId, attempts);
+  
+  console.log(`[WA-RECONNECT] Tentativa ${attempts.count}/${MAX_RECONNECTION_ATTEMPTS} para deviceId=${deviceId}`);
+}
+
+function resetReconnectionAttempts(deviceId) {
+  reconnectionAttempts.delete(deviceId);
+  console.log(`[WA-RECONNECT] Reset de tentativas para deviceId=${deviceId}`);
+}
+
 function formatPhoneNumber(phone) {
   // Remove todos os caracteres não numéricos
   let cleaned = phone.replace(/\D/g, "");
@@ -120,6 +154,24 @@ const startConnection = async (deviceId, connection_name) => {
 
   try {
     console.log("[WA-START] Carregando estado de autenticação...");
+    
+    // Verificar se há dados corrompidos antes de carregar
+    try {
+      const credsFile = path.join(authFolder, 'creds.json');
+      if (fs.existsSync(credsFile)) {
+        const credsData = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+        if (!credsData.me || !credsData.me.id) {
+          console.log("[WA-START] Credenciais corrompidas detectadas, removendo pasta...");
+          fs.rmSync(authFolder, { recursive: true, force: true });
+          fs.mkdirSync(authFolder, { recursive: true });
+        }
+      }
+    } catch (error) {
+      console.log("[WA-START] Erro ao verificar credenciais, removendo pasta...");
+      fs.rmSync(authFolder, { recursive: true, force: true });
+      fs.mkdirSync(authFolder, { recursive: true });
+    }
+    
     const { state, saveCreds } = await useMultiFileAuthState(authFolder);
     console.log(
       "[WA-START] Estado de autenticação carregado:",
@@ -129,7 +181,6 @@ const startConnection = async (deviceId, connection_name) => {
     console.log("[WA-START] Criando cliente Baileys...");
     const client = makeWASocket({
       auth: state,
-      printQRInTerminal: true,
       browser: ["Chrome (Linux)", "", ""],
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 60000,
@@ -141,6 +192,9 @@ const startConnection = async (deviceId, connection_name) => {
       syncFullHistory: false, // Não sincronizar histórico completo
       fireInitQueries: true,
       shouldIgnoreJid: jid => isJidBroadcast(jid),
+      // Configurações adicionais para estabilidade
+      emitOwnEvents: false,
+      generateHighQualityLinkPreview: false,
       // Removido patchMessageBeforeSending - pode causar problemas na versão 6.7.18
     });
 
@@ -163,24 +217,56 @@ const startConnection = async (deviceId, connection_name) => {
       const connection_name =
         prev && prev.connection_name ? prev.connection_name : undefined;
 
-      if (update.connection === "open") {
-        console.log(`[WA-CONNECTED] deviceId=${deviceId}`);
-        connections.set(deviceId, {
-          client,
-          status: "connected",
-          deviceId,
-          connection_name,
-        });
+             if (update.connection === "open") {
+         console.log(`[WA-CONNECTED] deviceId=${deviceId}`);
+         connections.set(deviceId, {
+           client,
+           status: "connected",
+           deviceId,
+           connection_name,
+         });
+         // Reset de tentativas quando conecta com sucesso
+         resetReconnectionAttempts(deviceId);
       } else if (update.connection === "close") {
         const statusCode = update.lastDisconnect?.error?.output?.statusCode;
         const reason = update.lastDisconnect?.error?.message || "Desconhecido";
         console.log(`[WA-DISCONNECT] deviceId=${deviceId}, statusCode=${statusCode}, reason=${reason}`);
 
-        if (statusCode !== DisconnectReason.loggedOut) {
-          console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId} em 5 segundos...`);
-          setTimeout(() => {
-            startConnection(deviceId, connection_name);
-          }, 5000);
+                 // Se for erro de conexão (405), limpar autenticação e tentar novamente
+         if (statusCode === 405 || statusCode === 401) {
+           console.log(`[WA-ERROR] Erro de autenticação detectado (${statusCode}). Limpando dados e tentando novamente...`);
+           
+           // Incrementar tentativa de reconexão
+           incrementReconnectionAttempt(deviceId);
+           
+           try {
+             const authFolder = path.join(__dirname, "auth", deviceId);
+             if (fs.existsSync(authFolder)) {
+               fs.rmSync(authFolder, { recursive: true, force: true });
+               console.log(`[WA-ERROR] Pasta de autenticação removida para deviceId=${deviceId}`);
+             }
+           } catch (error) {
+             console.error(`[WA-ERROR] Erro ao limpar pasta de autenticação:`, error);
+           }
+           
+           // Remover do mapa de conexões
+           connections.delete(deviceId);
+           qrCodes.delete(deviceId);
+           
+           const delay = getReconnectionDelay(deviceId);
+           console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId} em ${delay/1000} segundos...`);
+           setTimeout(() => {
+             startConnection(deviceId, connection_name);
+           }, delay);
+                 } else if (statusCode !== DisconnectReason.loggedOut) {
+           // Incrementar tentativa de reconexão para outros erros
+           incrementReconnectionAttempt(deviceId);
+           
+           const delay = getReconnectionDelay(deviceId);
+           console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId} em ${delay/1000} segundos...`);
+           setTimeout(() => {
+             startConnection(deviceId, connection_name);
+           }, delay);
         } else {
           console.log(
             `[WA-LOGOUT] Sessão do deviceId=${deviceId} desconectada permanentemente. Limpando dados de autenticação...`
@@ -804,6 +890,178 @@ function cleanupRecentSends() {
 
 // Limpa o cache a cada 30 minutos
 setInterval(cleanupRecentSends, 30 * 60 * 1000);
+
+// Sistema de monitoramento de reconexões
+setInterval(() => {
+  const now = Date.now();
+  const problematicDevices = [];
+  
+  for (const [deviceId, attempts] of reconnectionAttempts.entries()) {
+    if (attempts.count >= 3) {
+      problematicDevices.push({
+        deviceId,
+        attempts: attempts.count,
+        lastAttempt: new Date(attempts.lastAttempt).toISOString()
+      });
+    }
+  }
+  
+  if (problematicDevices.length > 0) {
+    console.log(`[MONITOR] ⚠️ Dispositivos com problemas de reconexão:`, problematicDevices);
+  }
+  
+  // Limpar tentativas antigas (mais de 1 hora)
+  for (const [deviceId, attempts] of reconnectionAttempts.entries()) {
+    if (now - attempts.lastAttempt > 3600000) { // 1 hora
+      reconnectionAttempts.delete(deviceId);
+    }
+  }
+}, 5 * 60 * 1000); // Verificar a cada 5 minutos
+
+// Sistema automático de limpeza de autenticação
+setInterval(async () => {
+  console.log('[AUTO-CLEANUP] Verificando autenticações corrompidas...');
+  
+  try {
+    const authDir = path.join(__dirname, 'auth');
+    if (!fs.existsSync(authDir)) return;
+    
+    const deviceFolders = fs.readdirSync(authDir);
+    let cleanedCount = 0;
+    
+    for (const deviceId of deviceFolders) {
+      const devicePath = path.join(authDir, deviceId);
+      const credsFile = path.join(devicePath, 'creds.json');
+      
+      // Verificar se as credenciais estão corrompidas
+      if (fs.existsSync(credsFile)) {
+        try {
+          const credsData = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+          
+          // Se credenciais estão corrompidas, limpar automaticamente
+          if (!credsData.me || !credsData.me.id) {
+            console.log(`[AUTO-CLEANUP] Credenciais corrompidas detectadas para ${deviceId}, limpando...`);
+            
+            // Remover do mapa de conexões se estiver conectado
+            if (connections.has(deviceId)) {
+              connections.delete(deviceId);
+              qrCodes.delete(deviceId);
+              console.log(`[AUTO-CLEANUP] Dispositivo ${deviceId} removido dos mapas de conexão`);
+            }
+            
+            // Limpar pasta de autenticação
+            fs.rmSync(devicePath, { recursive: true, force: true });
+            cleanedCount++;
+            
+            // Reset de tentativas de reconexão
+            reconnectionAttempts.delete(deviceId);
+          }
+        } catch (error) {
+          console.log(`[AUTO-CLEANUP] Erro ao ler credenciais de ${deviceId}, limpando...`);
+          fs.rmSync(devicePath, { recursive: true, force: true });
+          cleanedCount++;
+          reconnectionAttempts.delete(deviceId);
+        }
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      console.log(`[AUTO-CLEANUP] ${cleanedCount} dispositivos limpos automaticamente`);
+    }
+    
+  } catch (error) {
+    console.error('[AUTO-CLEANUP] Erro durante limpeza automática:', error);
+  }
+}, 10 * 60 * 1000); // Verificar a cada 10 minutos
+
+// Rota para monitorar sistema automático
+app.get("/api/debug/auto-cleanup", (req, res) => {
+  try {
+    const authDir = path.join(__dirname, 'auth');
+    const deviceStatus = [];
+    
+    if (fs.existsSync(authDir)) {
+      const deviceFolders = fs.readdirSync(authDir);
+      
+      for (const deviceId of deviceFolders) {
+        const devicePath = path.join(authDir, deviceId);
+        const credsFile = path.join(devicePath, 'creds.json');
+        
+        let status = 'unknown';
+        let isValid = false;
+        
+        if (fs.existsSync(credsFile)) {
+          try {
+            const credsData = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+            isValid = !!(credsData.me && credsData.me.id);
+            status = isValid ? 'valid' : 'corrupted';
+          } catch (error) {
+            status = 'error';
+          }
+        } else {
+          status = 'no_creds';
+        }
+        
+        deviceStatus.push({
+          deviceId,
+          status,
+          isValid,
+          hasConnection: connections.has(deviceId),
+          connectionStatus: connections.get(deviceId)?.status || 'disconnected'
+        });
+      }
+    }
+    
+    return res.status(200).json({
+      autoCleanup: {
+        enabled: true,
+        interval: '10 minutes',
+        lastCheck: new Date().toISOString()
+      },
+      devices: deviceStatus
+    });
+  } catch (error) {
+    console.error("Erro ao obter status do auto-cleanup:", error);
+    return res.status(500).json({
+      error: "Erro ao obter status do auto-cleanup",
+      details: error.message,
+    });
+  }
+});
+
+// Rota para monitorar status das reconexões
+app.get("/api/debug/reconnections", (req, res) => {
+  try {
+    const reconnectionStatus = Array.from(reconnectionAttempts.entries()).map(
+      ([deviceId, attempts]) => ({
+        deviceId,
+        attempts: attempts.count,
+        maxAttempts: MAX_RECONNECTION_ATTEMPTS,
+        lastAttempt: new Date(attempts.lastAttempt).toISOString(),
+        backoff: attempts.backoff,
+        isBlocked: attempts.count >= MAX_RECONNECTION_ATTEMPTS
+      })
+    );
+
+    return res.status(200).json({
+      reconnections: {
+        count: reconnectionAttempts.size,
+        items: reconnectionStatus
+      },
+      settings: {
+        maxAttempts: MAX_RECONNECTION_ATTEMPTS,
+        initialBackoff: INITIAL_BACKOFF,
+        maxBackoff: MAX_BACKOFF
+      }
+    });
+  } catch (error) {
+    console.error("Erro ao obter status das reconexões:", error);
+    return res.status(500).json({
+      error: "Erro ao obter status das reconexões",
+      details: error.message,
+    });
+  }
+});
 
 // Rota para debug - verificar status dos caches
 app.get("/api/debug/caches", (req, res) => {
