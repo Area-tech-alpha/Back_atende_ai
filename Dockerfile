@@ -8,8 +8,8 @@ RUN apk add --no-cache python3 make g++ libc6-compat
 # Copiar arquivos de dependências
 COPY package*.json ./
 
-# Instalar todas as dependências (incluindo devDependencies para o build)
-RUN npm ci
+# Instalar dependências
+RUN npm install --legacy-peer-deps
 
 # Copiar o resto dos arquivos
 COPY . .
@@ -23,9 +23,6 @@ ENV VITE_API_URL=https://lionchat.tech
 
 # Construir a aplicação
 RUN npm run build
-
-# Remover devDependencies para otimizar a imagem
-RUN npm prune --production
 
 # Expor a porta
 EXPOSE 3000
