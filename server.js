@@ -69,26 +69,39 @@ const INITIAL_BACKOFF = 5000; // 5 segundos
 const MAX_BACKOFF = 300000; // 5 minutos
 
 function getReconnectionDelay(deviceId) {
-  const attempts = reconnectionAttempts.get(deviceId) || { count: 0, backoff: INITIAL_BACKOFF };
-  
+  const attempts = reconnectionAttempts.get(deviceId) || {
+    count: 0,
+    backoff: INITIAL_BACKOFF,
+  };
+
   if (attempts.count >= MAX_RECONNECTION_ATTEMPTS) {
-    console.log(`[WA-RECONNECT] DeviceId=${deviceId} atingiu limite máximo de tentativas. Aguardando 30 minutos...`);
+    console.log(
+      `[WA-RECONNECT] DeviceId=${deviceId} atingiu limite máximo de tentativas. Aguardando 30 minutos...`
+    );
     return 1800000; // 30 minutos
   }
-  
+
   // Backoff exponencial
-  const delay = Math.min(attempts.backoff * Math.pow(2, attempts.count), MAX_BACKOFF);
+  const delay = Math.min(
+    attempts.backoff * Math.pow(2, attempts.count),
+    MAX_BACKOFF
+  );
   return delay;
 }
 
 function incrementReconnectionAttempt(deviceId) {
-  const attempts = reconnectionAttempts.get(deviceId) || { count: 0, backoff: INITIAL_BACKOFF };
+  const attempts = reconnectionAttempts.get(deviceId) || {
+    count: 0,
+    backoff: INITIAL_BACKOFF,
+  };
   attempts.count++;
   attempts.lastAttempt = Date.now();
   attempts.backoff = Math.min(attempts.backoff * 2, MAX_BACKOFF);
   reconnectionAttempts.set(deviceId, attempts);
-  
-  console.log(`[WA-RECONNECT] Tentativa ${attempts.count}/${MAX_RECONNECTION_ATTEMPTS} para deviceId=${deviceId}`);
+
+  console.log(
+    `[WA-RECONNECT] Tentativa ${attempts.count}/${MAX_RECONNECTION_ATTEMPTS} para deviceId=${deviceId}`
+  );
 }
 
 function resetReconnectionAttempts(deviceId) {
@@ -97,93 +110,107 @@ function resetReconnectionAttempts(deviceId) {
 }
 
 function formatPhoneNumber(phone) {
-  // Remove todos os caracteres não numéricos
-  let cleaned = phone.replace(/\D/g, "");
-
-  // Se não começar com 55, adiciona
+  // Normaliza para apenas dígitos e garante prefixo 55
+  let cleaned = String(phone || "").replace(/\D/g, "");
   if (!cleaned.startsWith("55")) {
     cleaned = "55" + cleaned;
   }
-
-  // Se o número tiver 13 dígitos (55 + DDD + 9 + número), remove o 9
-  // Mantém os 4 primeiros (55 + DDD) e os últimos 8 dígitos
-  if (cleaned.length === 13 && cleaned.startsWith("55")) {
-    // 55 + DDD (2) + 9 + número (8)
-    // Queremos: 55 + DDD (2) + número (8)
-    cleaned = cleaned.slice(0, 4) + cleaned.slice(5);
-  }
-
   return cleaned;
 }
 
 const startConnection = async (deviceId, connection_name) => {
   console.log("[WA-START] Iniciando conexão para deviceId:", deviceId);
-  
+
   const authFolder = path.join(__dirname, "auth", deviceId);
-  
+
   // Verificar se a pasta existe e tem dados válidos
   if (fs.existsSync(authFolder)) {
-    console.log("[WA-START] Pasta de autenticação encontrada para deviceId:", deviceId);
-    
+    console.log(
+      "[WA-START] Pasta de autenticação encontrada para deviceId:",
+      deviceId
+    );
+
     // Verificar se há arquivos de credenciais
     const credsFile = path.join(authFolder, "creds.json");
     if (fs.existsSync(credsFile)) {
       try {
-        const credsData = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+        const credsData = JSON.parse(fs.readFileSync(credsFile, "utf8"));
         if (credsData.me && credsData.me.id) {
-          console.log("[WA-START] Credenciais válidas encontradas para deviceId:", deviceId);
+          console.log(
+            "[WA-START] Credenciais válidas encontradas para deviceId:",
+            deviceId
+          );
         } else {
-          console.log("[WA-START] Credenciais inválidas, removendo pasta de autenticação");
+          console.log(
+            "[WA-START] Credenciais inválidas, removendo pasta de autenticação"
+          );
           fs.rmSync(authFolder, { recursive: true, force: true });
           fs.mkdirSync(authFolder, { recursive: true });
         }
       } catch (error) {
-        console.log("[WA-START] Erro ao ler credenciais, removendo pasta de autenticação");
+        console.log(
+          "[WA-START] Erro ao ler credenciais, removendo pasta de autenticação"
+        );
         fs.rmSync(authFolder, { recursive: true, force: true });
         fs.mkdirSync(authFolder, { recursive: true });
       }
     } else {
-      console.log("[WA-START] Arquivo de credenciais não encontrado, criando nova pasta");
+      console.log(
+        "[WA-START] Arquivo de credenciais não encontrado, criando nova pasta"
+      );
       fs.rmSync(authFolder, { recursive: true, force: true });
       fs.mkdirSync(authFolder, { recursive: true });
     }
   } else {
-    console.log("[WA-START] Criando nova pasta de autenticação para deviceId:", deviceId);
+    console.log(
+      "[WA-START] Criando nova pasta de autenticação para deviceId:",
+      deviceId
+    );
     fs.mkdirSync(authFolder, { recursive: true });
   }
 
   try {
     console.log("[WA-START] Carregando estado de autenticação...");
-    
+
     // Verificar se há dados corrompidos antes de carregar
     try {
-      const credsFile = path.join(authFolder, 'creds.json');
+      const credsFile = path.join(authFolder, "creds.json");
       if (fs.existsSync(credsFile)) {
-        const credsData = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+        const credsData = JSON.parse(fs.readFileSync(credsFile, "utf8"));
         if (!credsData.me || !credsData.me.id) {
-          console.log("[WA-START] Credenciais corrompidas detectadas, removendo pasta...");
+          console.log(
+            "[WA-START] Credenciais corrompidas detectadas, removendo pasta..."
+          );
           fs.rmSync(authFolder, { recursive: true, force: true });
           fs.mkdirSync(authFolder, { recursive: true });
         } else {
-          console.log("[WA-START] Credenciais válidas encontradas, mantendo pasta...");
+          console.log(
+            "[WA-START] Credenciais válidas encontradas, mantendo pasta..."
+          );
         }
       } else {
-        console.log("[WA-START] Arquivo de credenciais não encontrado, será criado novo...");
+        console.log(
+          "[WA-START] Arquivo de credenciais não encontrado, será criado novo..."
+        );
       }
     } catch (error) {
-      console.log("[WA-START] Erro ao verificar credenciais, removendo pasta...");
+      console.log(
+        "[WA-START] Erro ao verificar credenciais, removendo pasta..."
+      );
       fs.rmSync(authFolder, { recursive: true, force: true });
       fs.mkdirSync(authFolder, { recursive: true });
     }
-    
+
     // Verificar se já houve muitas tentativas de reconexão para este deviceId
     const attempts = reconnectionAttempts.get(deviceId);
     if (attempts && attempts.count >= 2) {
-      console.log(`[WA-START] Muitas tentativas de reconexão detectadas (${attempts.count}), limpando pasta antes de tentar novamente...`);
+      console.log(
+        `[WA-START] Muitas tentativas de reconexão detectadas (${attempts.count}), limpando pasta antes de tentar novamente...`
+      );
       fs.rmSync(authFolder, { recursive: true, force: true });
       fs.mkdirSync(authFolder, { recursive: true });
     }
-    
+
     const { state, saveCreds } = await useMultiFileAuthState(authFolder);
     console.log(
       "[WA-START] Estado de autenticação carregado:",
@@ -195,7 +222,7 @@ const startConnection = async (deviceId, connection_name) => {
       syncFullHistory: false,
       fireInitQueries: true,
       emitOwnEvents: false,
-      generateHighQualityLinkPreview: false
+      generateHighQualityLinkPreview: false,
     });
     const client = makeWASocket({
       auth: state,
@@ -206,14 +233,11 @@ const startConnection = async (deviceId, connection_name) => {
       markOnlineOnConnect: false,
       deviceId: deviceId,
       // Configurações otimizadas para versão 6.7.18
-      // Removido version hardcoded - deixar Baileys usar versão automática
-      syncFullHistory: false, // Não sincronizar histórico completo
+      syncFullHistory: false,
       fireInitQueries: true,
-      shouldIgnoreJid: jid => isJidBroadcast(jid),
-      // Configurações adicionais para estabilidade
+      shouldIgnoreJid: (jid) => isJidBroadcast(jid),
       emitOwnEvents: false,
       generateHighQualityLinkPreview: false,
-      // Removido patchMessageBeforeSending - pode causar problemas na versão 6.7.18
     });
 
     // Sempre tenta preservar o nome já salvo, ou usa o novo
@@ -235,107 +259,140 @@ const startConnection = async (deviceId, connection_name) => {
       const connection_name =
         prev && prev.connection_name ? prev.connection_name : undefined;
 
-             if (update.connection === "open") {
-         console.log(`[WA-CONNECTED] deviceId=${deviceId}`);
-         connections.set(deviceId, {
-           client,
-           status: "connected",
-           deviceId,
-           connection_name,
-         });
-         // Reset de tentativas quando conecta com sucesso
-         resetReconnectionAttempts(deviceId);
+      if (update.connection === "open") {
+        console.log(`[WA-CONNECTED] deviceId=${deviceId}`);
+        connections.set(deviceId, {
+          client,
+          status: "connected",
+          deviceId,
+          connection_name,
+        });
+        // Reset de tentativas quando conecta com sucesso
+        resetReconnectionAttempts(deviceId);
       } else if (update.connection === "close") {
         const statusCode = update.lastDisconnect?.error?.output?.statusCode;
         const reason = update.lastDisconnect?.error?.message || "Desconhecido";
-        console.log(`[WA-DISCONNECT] deviceId=${deviceId}, statusCode=${statusCode}, reason=${reason}`);
+        console.log(
+          `[WA-DISCONNECT] deviceId=${deviceId}, statusCode=${statusCode}, reason=${reason}`
+        );
 
-                 // Se for erro de conexão (405), verificar se é necessário limpar autenticação
-         if (statusCode === 405 || statusCode === 401) {
-           console.log(`[WA-ERROR] Erro de autenticação detectado (${statusCode}). Verificando necessidade de limpeza...`);
-           
-           // Incrementar tentativa de reconexão
-           incrementReconnectionAttempt(deviceId);
-           
-           // Verificar se as credenciais estão realmente corrompidas antes de limpar
-           let shouldCleanup = false;
-           try {
-             const authFolder = path.join(__dirname, "auth", deviceId);
-             const credsFile = path.join(authFolder, 'creds.json');
-             
-             if (fs.existsSync(credsFile)) {
-               const credsData = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
-               if (!credsData.me || !credsData.me.id) {
-                 console.log(`[WA-ERROR] Credenciais corrompidas detectadas para deviceId=${deviceId}`);
-                 shouldCleanup = true;
-               } else {
-                 console.log(`[WA-ERROR] Credenciais válidas, mas erro de conexão. Tentando reconexão sem limpeza...`);
-               }
-             } else {
-               console.log(`[WA-ERROR] Arquivo de credenciais não encontrado para deviceId=${deviceId}`);
-               shouldCleanup = true;
-             }
-           } catch (error) {
-             console.log(`[WA-ERROR] Erro ao verificar credenciais para deviceId=${deviceId}:`, error.message);
-             shouldCleanup = true;
-           }
-           
-           // Só limpar se realmente necessário
-           if (shouldCleanup) {
-             try {
-               const authFolder = path.join(__dirname, "auth", deviceId);
-               if (fs.existsSync(authFolder)) {
-                 fs.rmSync(authFolder, { recursive: true, force: true });
-                 console.log(`[WA-ERROR] Pasta de autenticação removida para deviceId=${deviceId}`);
-               }
-             } catch (error) {
-               console.error(`[WA-ERROR] Erro ao limpar pasta de autenticação:`, error);
-             }
-           }
-           
-           // Remover do mapa de conexões
-           connections.delete(deviceId);
-           qrCodes.delete(deviceId);
-           
-           const delay = getReconnectionDelay(deviceId);
-           const additionalDelay = 5000; // 5 segundos adicionais para estabilizar
-           const totalDelay = delay + additionalDelay;
-           console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId} em ${totalDelay/1000} segundos...`);
-           setTimeout(() => {
-             startConnection(deviceId, connection_name);
-           }, totalDelay);
-                 } else if (statusCode !== DisconnectReason.loggedOut) {
-           // Incrementar tentativa de reconexão para outros erros
-           incrementReconnectionAttempt(deviceId);
-           
-           const delay = getReconnectionDelay(deviceId);
-           const additionalDelay = 3000; // 3 segundos adicionais para outros erros
-           const totalDelay = delay + additionalDelay;
-           console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId} em ${totalDelay/1000} segundos...`);
-           setTimeout(() => {
-             startConnection(deviceId, connection_name);
-           }, totalDelay);
+        // Se for erro de conexão (405/401), tratar autenticação
+        if (statusCode === 405 || statusCode === 401) {
+          console.log(
+            `[WA-ERROR] Erro de autenticação detectado (${statusCode}). Verificando necessidade de limpeza...`
+          );
+
+          // Incrementar tentativa de reconexão
+          incrementReconnectionAttempt(deviceId);
+
+          // Verificar se as credenciais estão realmente corrompidas antes de limpar
+          let shouldCleanup = false;
+          try {
+            const authFolder = path.join(__dirname, "auth", deviceId);
+            const credsFile = path.join(authFolder, "creds.json");
+
+            if (fs.existsSync(credsFile)) {
+              const credsData = JSON.parse(fs.readFileSync(credsFile, "utf8"));
+              if (!credsData.me || !credsData.me.id) {
+                console.log(
+                  `[WA-ERROR] Credenciais corrompidas detectadas para deviceId=${deviceId}`
+                );
+                shouldCleanup = true;
+              } else {
+                console.log(
+                  `[WA-ERROR] Credenciais válidas, mas erro de conexão. Tentando reconexão sem limpeza...`
+                );
+              }
+            } else {
+              console.log(
+                `[WA-ERROR] Arquivo de credenciais não encontrado para deviceId=${deviceId}`
+              );
+              shouldCleanup = true;
+            }
+          } catch (error) {
+            console.log(
+              `[WA-ERROR] Erro ao verificar credenciais para deviceId=${deviceId}:`,
+              error.message
+            );
+            shouldCleanup = true;
+          }
+
+          // Só limpar se realmente necessário
+          if (shouldCleanup) {
+            try {
+              const authFolder = path.join(__dirname, "auth", deviceId);
+              if (fs.existsSync(authFolder)) {
+                fs.rmSync(authFolder, { recursive: true, force: true });
+                console.log(
+                  `[WA-ERROR] Pasta de autenticação removida para deviceId=${deviceId}`
+                );
+              }
+            } catch (error) {
+              console.error(
+                `[WA-ERROR] Erro ao limpar pasta de autenticação:`,
+                error
+              );
+            }
+          }
+
+          // Remover do mapa de conexões
+          connections.delete(deviceId);
+          qrCodes.delete(deviceId);
+
+          const delay = getReconnectionDelay(deviceId);
+          const additionalDelay = 5000; // 5s para estabilizar
+          const totalDelay = delay + additionalDelay;
+          console.log(
+            `[WA-RECONNECT] Tentando reconectar deviceId=${deviceId} em ${
+              totalDelay / 1000
+            } segundos...`
+          );
+          setTimeout(() => {
+            startConnection(deviceId, connection_name);
+          }, totalDelay);
+        } else if (statusCode !== DisconnectReason.loggedOut) {
+          // Incrementar tentativa de reconexão para outros erros
+          incrementReconnectionAttempt(deviceId);
+
+          const delay = getReconnectionDelay(deviceId);
+          const additionalDelay = 3000; // 3s adicionais
+          const totalDelay = delay + additionalDelay;
+          console.log(
+            `[WA-RECONNECT] Tentando reconectar deviceId=${deviceId} em ${
+              totalDelay / 1000
+            } segundos...`
+          );
+          setTimeout(() => {
+            startConnection(deviceId, connection_name);
+          }, totalDelay);
         } else {
           console.log(
             `[WA-LOGOUT] Sessão do deviceId=${deviceId} desconectada permanentemente. Limpando dados de autenticação...`
           );
-          
+
           // Limpar dados de autenticação quando loggedOut
           try {
             const authFolder = path.join(__dirname, "auth", deviceId);
             if (fs.existsSync(authFolder)) {
               fs.rmSync(authFolder, { recursive: true, force: true });
-              console.log(`[WA-LOGOUT] Pasta de autenticação removida para deviceId=${deviceId}`);
+              console.log(
+                `[WA-LOGOUT] Pasta de autenticação removida para deviceId=${deviceId}`
+              );
             }
           } catch (error) {
-            console.error(`[WA-LOGOUT] Erro ao limpar pasta de autenticação:`, error);
+            console.error(
+              `[WA-LOGOUT] Erro ao limpar pasta de autenticação:`,
+              error
+            );
           }
-          
+
           // Remover do mapa de conexões
           connections.delete(deviceId);
           qrCodes.delete(deviceId);
-          
-          console.log(`[WA-LOGOUT] DeviceId=${deviceId} removido dos mapas de conexão`);
+
+          console.log(
+            `[WA-LOGOUT] DeviceId=${deviceId} removido dos mapas de conexão`
+          );
         }
       }
 
@@ -365,7 +422,6 @@ const startConnection = async (deviceId, connection_name) => {
       qrcode.toDataURL(qr, (err, url) => {
         if (!err) {
           qrCodes.set(deviceId, url); // Salva o base64
-          console.log(`[WA-QR] QR Code base64 salvo para deviceId=${deviceId}`);
         } else {
           console.error("[WA-QR] Erro ao gerar QR Code base64:", err);
         }
@@ -400,18 +456,26 @@ const startConnection = async (deviceId, connection_name) => {
 
     return client;
   } catch (error) {
-    console.error(`[WA-START-ERROR] Erro ao iniciar conexão para deviceId=${deviceId}:`, error);
-    
+    console.error(
+      `[WA-START-ERROR] Erro ao iniciar conexão para deviceId=${deviceId}:`,
+      error
+    );
+
     // Limpar pasta de autenticação em caso de erro
     try {
       if (fs.existsSync(authFolder)) {
         fs.rmSync(authFolder, { recursive: true, force: true });
-        console.log(`[WA-START-ERROR] Pasta de autenticação limpa para deviceId=${deviceId}`);
+        console.log(
+          `[WA-START-ERROR] Pasta de autenticação limpa para deviceId=${deviceId}`
+        );
       }
     } catch (cleanupError) {
-      console.error(`[WA-START-ERROR] Erro ao limpar pasta de autenticação:`, cleanupError);
+      console.error(
+        `[WA-START-ERROR] Erro ao limpar pasta de autenticação:`,
+        cleanupError
+      );
     }
-    
+
     throw error;
   }
 };
@@ -420,7 +484,6 @@ const startConnection = async (deviceId, connection_name) => {
 const generateQR = async (client) => {
   return new Promise((resolve, reject) => {
     client.ev.on("qr", (qr) => {
-      console.log("QR Code gerado");
       qrcode.toDataURL(qr, (err, url) => {
         if (err) {
           console.error("Erro ao gerar QR Code:", err);
@@ -474,7 +537,6 @@ app.post("/api/whatsapp/connect", async (req, res) => {
       existing &&
       (existing.status === "connected" || existing.status === "connecting")
     ) {
-      console.log("[WA-CONNECT] Dispositivo já está conectado:", deviceId);
       return res
         .status(200)
         .json({ message: "Dispositivo já conectado", deviceId });
@@ -487,25 +549,18 @@ app.post("/api/whatsapp/connect", async (req, res) => {
     console.log("[WA-CONNECT] Aguardando geração do QR code...");
     const qrPromise = new Promise((resolve) => {
       client.ev.on("qr", async (qr) => {
-        console.log("[WA-CONNECT] QR code recebido");
         resolve({ qr, status: "pending" });
       });
 
-      // Adicionar timeout para o evento QR
+      // Timeout para o evento QR
       setTimeout(() => {
-        console.log("[WA-CONNECT] Timeout aguardando QR code");
         resolve(null);
       }, 30000);
     });
 
     const result = await qrPromise;
-    console.log(
-      "[WA-CONNECT] Resultado da geração do QR code:",
-      result ? "Sucesso" : "Falha"
-    );
 
     if (result && result.qr) {
-      console.log("[WA-CONNECT] Enviando QR code para o cliente");
       return res.status(200).json({
         message: "QR Code gerado",
         deviceId,
@@ -513,9 +568,6 @@ app.post("/api/whatsapp/connect", async (req, res) => {
         status: result.status,
       });
     } else {
-      console.log(
-        "[WA-CONNECT] Nenhum QR code gerado, enviando resposta padrão"
-      );
       return res.status(200).json({
         message: "Conexão iniciada, aguardando QR Code",
         deviceId,
@@ -534,7 +586,6 @@ app.post("/api/whatsapp/connect", async (req, res) => {
 app.get("/api/whatsapp/status/:deviceId", (req, res) => {
   try {
     const { deviceId } = req.params;
-    console.log("Verificando status para dispositivo:", deviceId);
 
     if (!deviceId) {
       return res.status(400).json({ error: "ID do dispositivo não fornecido" });
@@ -543,11 +594,9 @@ app.get("/api/whatsapp/status/:deviceId", (req, res) => {
     const connection = connections.get(deviceId);
 
     if (!connection) {
-      console.log("Conexão não encontrada para dispositivo:", deviceId);
       return res.status(404).json({ error: "Conexão não encontrada" });
     }
 
-    console.log("Status da conexão:", connection.status);
     return res.status(200).json({
       status: connection.status,
       deviceId: connection.deviceId,
@@ -586,7 +635,7 @@ app.get("/api/whatsapp/devices", (req, res) => {
 app.delete("/api/whatsapp/devices/:deviceId/auth", (req, res) => {
   try {
     const { deviceId } = req.params;
-    
+
     if (!deviceId) {
       return res.status(400).json({ error: "ID do dispositivo não fornecido" });
     }
@@ -595,16 +644,18 @@ app.delete("/api/whatsapp/devices/:deviceId/auth", (req, res) => {
     const authFolder = path.join(__dirname, "auth", deviceId);
     if (fs.existsSync(authFolder)) {
       fs.rmSync(authFolder, { recursive: true, force: true });
-      console.log(`[CLEANUP] Pasta de autenticação removida para deviceId=${deviceId}`);
+      console.log(
+        `[CLEANUP] Pasta de autenticação removida para deviceId=${deviceId}`
+      );
     }
 
     // Remover dos mapas
     connections.delete(deviceId);
     qrCodes.delete(deviceId);
 
-    return res.status(200).json({ 
+    return res.status(200).json({
       message: "Dados de autenticação limpos com sucesso",
-      deviceId 
+      deviceId,
     });
   } catch (error) {
     console.error("Erro ao limpar dados de autenticação:", error);
@@ -615,167 +666,161 @@ app.delete("/api/whatsapp/devices/:deviceId/auth", (req, res) => {
   }
 });
 
-// Rota para enviar mensagem
+// Rota para enviar mensagem (corrigida)
 app.post("/api/whatsapp/send", async (req, res) => {
   try {
     const { deviceId, number, message, imagemUrl, caption } = req.body;
     console.log("[SEND] Requisição recebida:", {
       deviceId,
       number,
-      message,
-      imagemUrl,
-      caption,
+      hasMessage: !!message,
+      hasImage: !!imagemUrl,
     });
 
     if (!deviceId || !number || (!message && !imagemUrl)) {
-      console.error("[SEND] Parâmetros inválidos:", {
-        deviceId,
-        number,
-        message,
-        imagemUrl,
-      });
       return res.status(400).json({
         error: "Parâmetros inválidos",
-        details: "deviceId, number e message ou imageUrl são obrigatórios",
+        details: "deviceId, number e (message ou imagemUrl) são obrigatórios",
       });
     }
 
-    console.log("[SEND] Verificando conexão para deviceId:", deviceId);
+    // Verifica conexão
     const connection = connections.get(deviceId);
     if (!connection) {
-      console.error("[SEND] Dispositivo não encontrado:", deviceId);
       return res.status(404).json({ error: "Dispositivo não encontrado" });
     }
-
-    console.log("[SEND] Status da conexão:", connection.status);
     if (connection.status !== "connected") {
-      console.error("[SEND] Conexão não está conectada. Status:", connection.status);
-      return res.status(400).json({ 
-        error: "Conexão não está pronta", 
-        details: `Status atual: ${connection.status}` 
+      return res.status(400).json({
+        error: "Conexão não está pronta",
+        details: `Status atual: ${connection.status}`,
       });
     }
 
-    // Formata o número para o padrão desejado
+    // Normaliza número e cria JID
     console.log("[SEND] Número original:", number);
-    const formattedNumberRaw = formatPhoneNumber(number);
-    console.log("[SEND] Número formatado:", formattedNumberRaw);
-    const formattedNumber = formattedNumberRaw.includes("@s.whatsapp.net")
-      ? formattedNumberRaw
-      : `${formattedNumberRaw}@s.whatsapp.net`;
-    console.log("[SEND] Número final para envio:", formattedNumber);
+    const rawNumber = formatPhoneNumber(number); // ex: 5511987654321
+    const jid = `${rawNumber}@s.whatsapp.net`; // ex: 5511987654321@s.whatsapp.net
+    console.log("[SEND] Número normalizado:", rawNumber);
+    console.log("[SEND] JID final para envio:", jid);
 
-    // Chave única para controle de duplicatas
-    const sendKey = `${deviceId}_${formattedNumber}`;
-    console.log("[SEND] Chave de controle:", sendKey);
+    // Chave de controle de duplicidade usa o JID
+    const sendKey = `${deviceId}_${jid}`;
 
-    // Verifica se já existe um envio em andamento para este número
+    // Se já existe envio em andamento para este número, aguarda o resultado
     if (pendingSends.has(sendKey)) {
-      console.log(
-        `[SEND] Envio em andamento para ${formattedNumber}, aguardando...`
-      );
+      console.log(`[SEND] Envio em andamento para ${jid}, aguardando...`);
       try {
         const result = await pendingSends.get(sendKey);
         return res.status(200).json(result);
-      } catch (error) {
+      } catch (e) {
         pendingSends.delete(sendKey);
-        console.error(
-          `[SEND] Erro no envio anterior para ${formattedNumber}:`,
-          error
-        );
+        console.error(`[SEND] Erro no envio anterior para ${jid}:`, e);
       }
     }
 
-    // Verifica se houve um envio recente (últimos 5 segundos)
+    // Proteção contra flood (5s)
     const now = Date.now();
     const lastSend = recentSends.get(sendKey);
     if (lastSend && now - lastSend < 5000) {
-      console.log(
-        `[SEND] Envio muito recente para ${formattedNumber}, rejeitando...`
-      );
       return res.status(429).json({
         error: "Envio muito frequente",
         details: "Aguarde alguns segundos antes de tentar novamente",
       });
     }
 
-    // Cria uma Promise para controlar o envio
+    // Promise controlada para evitar duplicidade
     const sendPromise = (async () => {
       try {
-        console.log("[SEND] Iniciando verificação se número tem WhatsApp...");
-        // Verifica se o número tem WhatsApp - compatível com versão 6.7.18
+        // 1) Checa existência no WhatsApp usando número cru (NÃO JID)
+        let isWhatsApp = true;
         try {
-          const exists = await connection.client.onWhatsApp(formattedNumber);
-          console.log("[SEND] Resultado onWhatsApp:", exists);
-          if (!exists || !exists[0]?.exists) {
-            console.error(
-              "[SEND] Número não possui WhatsApp:",
-              formattedNumberRaw
-            );
-            throw new Error("O número informado não possui WhatsApp.");
-          }
-        } catch (error) {
-          console.log("[SEND] Erro ao verificar WhatsApp, continuando envio...", error.message);
-          // Em caso de erro na verificação, continua com o envio
+          const exists = await connection.client.onWhatsApp(rawNumber);
+          console.log("[SEND] onWhatsApp(raw) ->", exists);
+          isWhatsApp = Array.isArray(exists) && exists[0]?.exists === true;
+        } catch (checkErr) {
+          // Na 6.7.18 essa checagem pode falhar de forma intermitente; não bloqueie o envio por isso.
+          console.log(
+            "[SEND] onWhatsApp falhou, prosseguindo. Motivo:",
+            checkErr?.message
+          );
+        }
+        if (!isWhatsApp) {
+          throw new Error("O número informado não possui WhatsApp.");
         }
 
-        console.log("[SEND] Número possui WhatsApp, preparando envio...");
+        // 2) Prepara payload e envia (com 1 retry em falhas transitórias)
         let result;
-
         if (imagemUrl) {
-          // Baixa imagem da URL
-          console.log("[SEND] Baixando imagem da URL:", imagemUrl);
+          console.log("[SEND] Baixando imagem:", imagemUrl);
           const response = await axios.get(imagemUrl, {
             responseType: "arraybuffer",
           });
           const imageBuffer = Buffer.from(response.data, "binary");
-          console.log("[SEND] Imagem baixada, tamanho:", imageBuffer.length, "bytes");
-
-          console.log("[SEND] Enviando mensagem com imagem...");
-          result = await connection.client.sendMessage(formattedNumber, {
+          const payload = {
             image: imageBuffer,
             caption: caption || message || "",
-          });
-          console.log("[SEND] Mensagem com imagem enviada:", result);
+          };
+
+          try {
+            result = await connection.client.sendMessage(jid, payload);
+          } catch (e) {
+            const msg = String(e?.message || "");
+            const transient =
+              /stream|decrypt|temporar|retry|socket|connection/i.test(msg);
+            if (transient) {
+              console.log(
+                "[SEND] Falha transitória (imagem). Retry em 3000ms..."
+              );
+              await new Promise((r) => setTimeout(r, 3000));
+              result = await connection.client.sendMessage(jid, payload);
+            } else {
+              throw e;
+            }
+          }
         } else {
-          console.log("[SEND] Enviando mensagem de texto:", message);
-          result = await connection.client.sendMessage(formattedNumber, {
-            text: message,
-          });
-          console.log("[SEND] Mensagem de texto enviada:", result);
+          const payload = { text: message };
+          try {
+            result = await connection.client.sendMessage(jid, payload);
+          } catch (e) {
+            const msg = String(e?.message || "");
+            const transient =
+              /stream|decrypt|temporar|retry|socket|connection/i.test(msg);
+            if (transient) {
+              console.log(
+                "[SEND] Falha transitória (texto). Retry em 3000ms..."
+              );
+              await new Promise((r) => setTimeout(r, 3000));
+              result = await connection.client.sendMessage(jid, payload);
+            } else {
+              throw e;
+            }
+          }
         }
 
-        // Registra o envio bem-sucedido
-        recentSends.set(sendKey, now);
-        console.log("[SEND] Envio registrado como bem-sucedido");
+        // 3) Marca como recente (contra flood)
+        recentSends.set(sendKey, Date.now());
 
         return {
           success: true,
-          messageId: result.key.id,
+          messageId: result?.key?.id,
         };
-      } catch (error) {
-        console.error("[SEND] Erro durante envio:", error);
-        console.error("[SEND] Stack trace:", error.stack);
-        throw error;
+      } catch (e) {
+        console.error("[SEND] Erro durante envio:", e);
+        throw e;
       } finally {
-        // Remove da lista de envios pendentes
+        // Sempre remover da lista de pendentes
         pendingSends.delete(sendKey);
-        console.log("[SEND] Removido da lista de envios pendentes");
       }
     })();
 
     // Armazena a Promise para evitar envios duplicados
     pendingSends.set(sendKey, sendPromise);
-    console.log("[SEND] Promise armazenada para controle de duplicatas");
 
-    // Aguarda o resultado
-    console.log("[SEND] Aguardando resultado do envio...");
+    // Aguarda resultado da promise
     const result = await sendPromise;
-    console.log("[SEND] Resultado final:", result);
     return res.status(200).json(result);
   } catch (error) {
     console.error("[SEND] Erro ao enviar mensagem:", error);
-    console.error("[SEND] Stack trace completo:", error.stack);
     return res.status(500).json({
       error: "Erro ao enviar mensagem",
       details: error.message,
@@ -786,17 +831,10 @@ app.post("/api/whatsapp/send", async (req, res) => {
 // Endpoint para buscar o QR code atual
 app.get("/api/whatsapp/qr/:deviceId", (req, res) => {
   const { deviceId } = req.params;
-  console.log(
-    "[DEBUG] Buscando QR para deviceId:",
-    deviceId,
-    "Map keys:",
-    Array.from(qrCodes.keys())
-  );
   const qr = qrCodes.get(deviceId);
   if (qr) {
     return res.json({ qr });
   }
-  console.log("[DEBUG] QR code não encontrado para deviceId:", deviceId);
   return res.status(404).json({ error: "QR code não encontrado" });
 });
 
@@ -947,24 +985,28 @@ setInterval(cleanupRecentSends, 30 * 60 * 1000);
 setInterval(() => {
   const now = Date.now();
   const problematicDevices = [];
-  
+
   for (const [deviceId, attempts] of reconnectionAttempts.entries()) {
     if (attempts.count >= 3) {
       problematicDevices.push({
         deviceId,
         attempts: attempts.count,
-        lastAttempt: new Date(attempts.lastAttempt).toISOString()
+        lastAttempt: new Date(attempts.lastAttempt).toISOString(),
       });
     }
   }
-  
+
   if (problematicDevices.length > 0) {
-    console.log(`[MONITOR] ⚠️ Dispositivos com problemas de reconexão:`, problematicDevices);
+    console.log(
+      `[MONITOR] ⚠️ Dispositivos com problemas de reconexão:`,
+      problematicDevices
+    );
   }
-  
+
   // Limpar tentativas antigas (mais de 1 hora)
   for (const [deviceId, attempts] of reconnectionAttempts.entries()) {
-    if (now - attempts.lastAttempt > 3600000) { // 1 hora
+    if (now - attempts.lastAttempt > 3600000) {
+      // 1 hora
       reconnectionAttempts.delete(deviceId);
     }
   }
@@ -972,105 +1014,112 @@ setInterval(() => {
 
 // Sistema automático de limpeza de autenticação
 setInterval(async () => {
-  console.log('[AUTO-CLEANUP] Verificando autenticações corrompidas...');
-  
+  console.log("[AUTO-CLEANUP] Verificando autenticações corrompidas...");
+
   try {
-    const authDir = path.join(__dirname, 'auth');
+    const authDir = path.join(__dirname, "auth");
     if (!fs.existsSync(authDir)) return;
-    
+
     const deviceFolders = fs.readdirSync(authDir);
     let cleanedCount = 0;
-    
+
     for (const deviceId of deviceFolders) {
       const devicePath = path.join(authDir, deviceId);
-      const credsFile = path.join(devicePath, 'creds.json');
-      
+      const credsFile = path.join(devicePath, "creds.json");
+
       // Verificar se as credenciais estão corrompidas
       if (fs.existsSync(credsFile)) {
         try {
-          const credsData = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
-          
+          const credsData = JSON.parse(fs.readFileSync(credsFile, "utf8"));
+
           // Se credenciais estão corrompidas, limpar automaticamente
           if (!credsData.me || !credsData.me.id) {
-            console.log(`[AUTO-CLEANUP] Credenciais corrompidas detectadas para ${deviceId}, limpando...`);
-            
+            console.log(
+              `[AUTO-CLEANUP] Credenciais corrompidas detectadas para ${deviceId}, limpando...`
+            );
+
             // Remover do mapa de conexões se estiver conectado
             if (connections.has(deviceId)) {
               connections.delete(deviceId);
               qrCodes.delete(deviceId);
-              console.log(`[AUTO-CLEANUP] Dispositivo ${deviceId} removido dos mapas de conexão`);
+              console.log(
+                `[AUTO-CLEANUP] Dispositivo ${deviceId} removido dos mapas de conexão`
+              );
             }
-            
+
             // Limpar pasta de autenticação
             fs.rmSync(devicePath, { recursive: true, force: true });
             cleanedCount++;
-            
+
             // Reset de tentativas de reconexão
             reconnectionAttempts.delete(deviceId);
           }
         } catch (error) {
-          console.log(`[AUTO-CLEANUP] Erro ao ler credenciais de ${deviceId}, limpando...`);
+          console.log(
+            `[AUTO-CLEANUP] Erro ao ler credenciais de ${deviceId}, limpando...`
+          );
           fs.rmSync(devicePath, { recursive: true, force: true });
           cleanedCount++;
           reconnectionAttempts.delete(deviceId);
         }
       }
     }
-    
+
     if (cleanedCount > 0) {
-      console.log(`[AUTO-CLEANUP] ${cleanedCount} dispositivos limpos automaticamente`);
+      console.log(
+        `[AUTO-CLEANUP] ${cleanedCount} dispositivos limpos automaticamente`
+      );
     }
-    
   } catch (error) {
-    console.error('[AUTO-CLEANUP] Erro durante limpeza automática:', error);
+    console.error("[AUTO-CLEANUP] Erro durante limpeza automática:", error);
   }
 }, 30 * 60 * 1000); // Verificar a cada 30 minutos
 
 // Rota para monitorar sistema automático
 app.get("/api/debug/auto-cleanup", (req, res) => {
   try {
-    const authDir = path.join(__dirname, 'auth');
+    const authDir = path.join(__dirname, "auth");
     const deviceStatus = [];
-    
+
     if (fs.existsSync(authDir)) {
       const deviceFolders = fs.readdirSync(authDir);
-      
+
       for (const deviceId of deviceFolders) {
         const devicePath = path.join(authDir, deviceId);
-        const credsFile = path.join(devicePath, 'creds.json');
-        
-        let status = 'unknown';
+        const credsFile = path.join(devicePath, "creds.json");
+
+        let status = "unknown";
         let isValid = false;
-        
+
         if (fs.existsSync(credsFile)) {
           try {
-            const credsData = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+            const credsData = JSON.parse(fs.readFileSync(credsFile, "utf8"));
             isValid = !!(credsData.me && credsData.me.id);
-            status = isValid ? 'valid' : 'corrupted';
+            status = isValid ? "valid" : "corrupted";
           } catch (error) {
-            status = 'error';
+            status = "error";
           }
         } else {
-          status = 'no_creds';
+          status = "no_creds";
         }
-        
+
         deviceStatus.push({
           deviceId,
           status,
           isValid,
           hasConnection: connections.has(deviceId),
-          connectionStatus: connections.get(deviceId)?.status || 'disconnected'
+          connectionStatus: connections.get(deviceId)?.status || "disconnected",
         });
       }
     }
-    
+
     return res.status(200).json({
       autoCleanup: {
         enabled: true,
-        interval: '10 minutes',
-        lastCheck: new Date().toISOString()
+        interval: "10 minutes",
+        lastCheck: new Date().toISOString(),
       },
-      devices: deviceStatus
+      devices: deviceStatus,
     });
   } catch (error) {
     console.error("Erro ao obter status do auto-cleanup:", error);
@@ -1091,20 +1140,20 @@ app.get("/api/debug/reconnections", (req, res) => {
         maxAttempts: MAX_RECONNECTION_ATTEMPTS,
         lastAttempt: new Date(attempts.lastAttempt).toISOString(),
         backoff: attempts.backoff,
-        isBlocked: attempts.count >= MAX_RECONNECTION_ATTEMPTS
+        isBlocked: attempts.count >= MAX_RECONNECTION_ATTEMPTS,
       })
     );
 
     return res.status(200).json({
       reconnections: {
         count: reconnectionAttempts.size,
-        items: reconnectionStatus
+        items: reconnectionStatus,
       },
       settings: {
         maxAttempts: MAX_RECONNECTION_ATTEMPTS,
         initialBackoff: INITIAL_BACKOFF,
-        maxBackoff: MAX_BACKOFF
-      }
+        maxBackoff: MAX_BACKOFF,
+      },
     });
   } catch (error) {
     console.error("Erro ao obter status das reconexões:", error);
