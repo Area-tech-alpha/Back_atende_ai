@@ -164,7 +164,11 @@ const startConnection = async (deviceId, connection_name) => {
           console.log("[WA-START] Credenciais corrompidas detectadas, removendo pasta...");
           fs.rmSync(authFolder, { recursive: true, force: true });
           fs.mkdirSync(authFolder, { recursive: true });
+        } else {
+          console.log("[WA-START] Credenciais válidas encontradas, mantendo pasta...");
         }
+      } else {
+        console.log("[WA-START] Arquivo de credenciais não encontrado, será criado novo...");
       }
     } catch (error) {
       console.log("[WA-START] Erro ao verificar credenciais, removendo pasta...");
@@ -179,6 +183,13 @@ const startConnection = async (deviceId, connection_name) => {
     );
 
     console.log("[WA-START] Criando cliente Baileys...");
+    console.log(`[WA-START] Configurações para deviceId=${deviceId}:`, {
+      version: [2, 2323, 4],
+      syncFullHistory: false,
+      fireInitQueries: true,
+      emitOwnEvents: false,
+      generateHighQualityLinkPreview: false
+    });
     const client = makeWASocket({
       auth: state,
       browser: ["Chrome (Linux)", "", ""],
@@ -232,21 +243,47 @@ const startConnection = async (deviceId, connection_name) => {
         const reason = update.lastDisconnect?.error?.message || "Desconhecido";
         console.log(`[WA-DISCONNECT] deviceId=${deviceId}, statusCode=${statusCode}, reason=${reason}`);
 
-                 // Se for erro de conexão (405), limpar autenticação e tentar novamente
+                 // Se for erro de conexão (405), verificar se é necessário limpar autenticação
          if (statusCode === 405 || statusCode === 401) {
-           console.log(`[WA-ERROR] Erro de autenticação detectado (${statusCode}). Limpando dados e tentando novamente...`);
+           console.log(`[WA-ERROR] Erro de autenticação detectado (${statusCode}). Verificando necessidade de limpeza...`);
            
            // Incrementar tentativa de reconexão
            incrementReconnectionAttempt(deviceId);
            
+           // Verificar se as credenciais estão realmente corrompidas antes de limpar
+           let shouldCleanup = false;
            try {
              const authFolder = path.join(__dirname, "auth", deviceId);
-             if (fs.existsSync(authFolder)) {
-               fs.rmSync(authFolder, { recursive: true, force: true });
-               console.log(`[WA-ERROR] Pasta de autenticação removida para deviceId=${deviceId}`);
+             const credsFile = path.join(authFolder, 'creds.json');
+             
+             if (fs.existsSync(credsFile)) {
+               const credsData = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+               if (!credsData.me || !credsData.me.id) {
+                 console.log(`[WA-ERROR] Credenciais corrompidas detectadas para deviceId=${deviceId}`);
+                 shouldCleanup = true;
+               } else {
+                 console.log(`[WA-ERROR] Credenciais válidas, mas erro de conexão. Tentando reconexão sem limpeza...`);
+               }
+             } else {
+               console.log(`[WA-ERROR] Arquivo de credenciais não encontrado para deviceId=${deviceId}`);
+               shouldCleanup = true;
              }
            } catch (error) {
-             console.error(`[WA-ERROR] Erro ao limpar pasta de autenticação:`, error);
+             console.log(`[WA-ERROR] Erro ao verificar credenciais para deviceId=${deviceId}:`, error.message);
+             shouldCleanup = true;
+           }
+           
+           // Só limpar se realmente necessário
+           if (shouldCleanup) {
+             try {
+               const authFolder = path.join(__dirname, "auth", deviceId);
+               if (fs.existsSync(authFolder)) {
+                 fs.rmSync(authFolder, { recursive: true, force: true });
+                 console.log(`[WA-ERROR] Pasta de autenticação removida para deviceId=${deviceId}`);
+               }
+             } catch (error) {
+               console.error(`[WA-ERROR] Erro ao limpar pasta de autenticação:`, error);
+             }
            }
            
            // Remover do mapa de conexões
@@ -254,19 +291,23 @@ const startConnection = async (deviceId, connection_name) => {
            qrCodes.delete(deviceId);
            
            const delay = getReconnectionDelay(deviceId);
-           console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId} em ${delay/1000} segundos...`);
+           const additionalDelay = 5000; // 5 segundos adicionais para estabilizar
+           const totalDelay = delay + additionalDelay;
+           console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId} em ${totalDelay/1000} segundos...`);
            setTimeout(() => {
              startConnection(deviceId, connection_name);
-           }, delay);
+           }, totalDelay);
                  } else if (statusCode !== DisconnectReason.loggedOut) {
            // Incrementar tentativa de reconexão para outros erros
            incrementReconnectionAttempt(deviceId);
            
            const delay = getReconnectionDelay(deviceId);
-           console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId} em ${delay/1000} segundos...`);
+           const additionalDelay = 3000; // 3 segundos adicionais para outros erros
+           const totalDelay = delay + additionalDelay;
+           console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId} em ${totalDelay/1000} segundos...`);
            setTimeout(() => {
              startConnection(deviceId, connection_name);
-           }, delay);
+           }, totalDelay);
         } else {
           console.log(
             `[WA-LOGOUT] Sessão do deviceId=${deviceId} desconectada permanentemente. Limpando dados de autenticação...`
@@ -916,7 +957,7 @@ setInterval(() => {
       reconnectionAttempts.delete(deviceId);
     }
   }
-}, 5 * 60 * 1000); // Verificar a cada 5 minutos
+}, 15 * 60 * 1000); // Verificar a cada 15 minutos
 
 // Sistema automático de limpeza de autenticação
 setInterval(async () => {
@@ -972,7 +1013,7 @@ setInterval(async () => {
   } catch (error) {
     console.error('[AUTO-CLEANUP] Erro durante limpeza automática:', error);
   }
-}, 10 * 60 * 1000); // Verificar a cada 10 minutos
+}, 30 * 60 * 1000); // Verificar a cada 30 minutos
 
 // Rota para monitorar sistema automático
 app.get("/api/debug/auto-cleanup", (req, res) => {
