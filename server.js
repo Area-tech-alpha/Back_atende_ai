@@ -6,6 +6,7 @@ import {
   useMultiFileAuthState,
   DisconnectReason,
   makeWASocket,
+  isJidBroadcast,
 } from "@whiskeysockets/baileys";
 import Boom from "@hapi/boom";
 import qrcode from "qrcode";
@@ -117,143 +118,168 @@ const startConnection = async (deviceId, connection_name) => {
     fs.mkdirSync(authFolder, { recursive: true });
   }
 
-  const { state, saveCreds } = await useMultiFileAuthState(authFolder);
-  console.log(
-    "[WA-START] Estado de autenticação carregado:",
-    state.creds ? "Autenticado" : "Não autenticado"
-  );
+  try {
+    console.log("[WA-START] Carregando estado de autenticação...");
+    const { state, saveCreds } = await useMultiFileAuthState(authFolder);
+    console.log(
+      "[WA-START] Estado de autenticação carregado:",
+      state.creds ? "Autenticado" : "Não autenticado"
+    );
 
-  const client = makeWASocket({
-    auth: state,
-    printQRInTerminal: true,
-    browser: ["Chrome (Linux)", "", ""],
-    connectTimeoutMs: 60000,
-    defaultQueryTimeoutMs: 60000,
-    retryRequestDelayMs: 250,
-    markOnlineOnConnect: false,
-    deviceId: deviceId,
-  });
+    console.log("[WA-START] Criando cliente Baileys...");
+    const client = makeWASocket({
+      auth: state,
+      printQRInTerminal: true,
+      browser: ["Chrome (Linux)", "", ""],
+      connectTimeoutMs: 60000,
+      defaultQueryTimeoutMs: 60000,
+      retryRequestDelayMs: 250,
+      markOnlineOnConnect: false,
+      deviceId: deviceId,
+      // Configurações otimizadas para versão 6.7.18
+      version: [2, 2323, 4], // Versão específica do WhatsApp
+      syncFullHistory: false, // Não sincronizar histórico completo
+      fireInitQueries: true,
+      shouldIgnoreJid: jid => isJidBroadcast(jid),
+      // Removido patchMessageBeforeSending - pode causar problemas na versão 6.7.18
+    });
 
-  // Sempre tenta preservar o nome já salvo, ou usa o novo
-  const prev = connections.get(deviceId);
-  const nameToSave = connection_name || (prev && prev.connection_name);
-  connections.set(deviceId, {
-    client,
-    status: "connecting",
-    deviceId,
-    connection_name: nameToSave,
-  });
-  console.log("[WA-START] Cliente criado e adicionado ao mapa de conexões");
-
-  client.ev.on("connection.update", async (update) => {
-    console.log(`[WA-UPDATE] ${deviceId}:`, update);
-
-    // Recupera o nome salvo, se existir
+    // Sempre tenta preservar o nome já salvo, ou usa o novo
     const prev = connections.get(deviceId);
-    const connection_name =
-      prev && prev.connection_name ? prev.connection_name : undefined;
+    const nameToSave = connection_name || (prev && prev.connection_name);
+    connections.set(deviceId, {
+      client,
+      status: "connecting",
+      deviceId,
+      connection_name: nameToSave,
+    });
+    console.log("[WA-START] Cliente criado e adicionado ao mapa de conexões");
 
-    if (update.connection === "open") {
-      console.log(`[WA-CONNECTED] deviceId=${deviceId}`);
-      connections.set(deviceId, {
-        client,
-        status: "connected",
-        deviceId,
-        connection_name,
-      });
-    } else if (update.connection === "close") {
-      const statusCode = update.lastDisconnect?.error?.output?.statusCode;
-      const reason = update.lastDisconnect?.error?.message || "Desconhecido";
+    client.ev.on("connection.update", async (update) => {
+      console.log(`[WA-UPDATE] ${deviceId}:`, update);
 
-      console.warn(
-        `[WA-DISCONNECTED] deviceId=${deviceId} - Motivo: ${reason}`
-      );
+      // Recupera o nome salvo, se existir
+      const prev = connections.get(deviceId);
+      const connection_name =
+        prev && prev.connection_name ? prev.connection_name : undefined;
 
-      if (statusCode !== DisconnectReason.loggedOut) {
-        console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId}`);
+      if (update.connection === "open") {
+        console.log(`[WA-CONNECTED] deviceId=${deviceId}`);
         connections.set(deviceId, {
           client,
-          status: "reconnecting",
+          status: "connected",
           deviceId,
           connection_name,
         });
-        setTimeout(() => {
-          startConnection(deviceId, connection_name);
-        }, 5000);
-      } else {
-        console.log(
-          `[WA-LOGOUT] Sessão do deviceId=${deviceId} desconectada permanentemente. Limpando dados de autenticação...`
-        );
-        
-        // Limpar dados de autenticação quando loggedOut
-        try {
-          const authFolder = path.join(__dirname, "auth", deviceId);
-          if (fs.existsSync(authFolder)) {
-            fs.rmSync(authFolder, { recursive: true, force: true });
-            console.log(`[WA-LOGOUT] Pasta de autenticação removida para deviceId=${deviceId}`);
+      } else if (update.connection === "close") {
+        const statusCode = update.lastDisconnect?.error?.output?.statusCode;
+        const reason = update.lastDisconnect?.error?.message || "Desconhecido";
+        console.log(`[WA-DISCONNECT] deviceId=${deviceId}, statusCode=${statusCode}, reason=${reason}`);
+
+        if (statusCode !== DisconnectReason.loggedOut) {
+          console.log(`[WA-RECONNECT] Tentando reconectar deviceId=${deviceId} em 5 segundos...`);
+          setTimeout(() => {
+            startConnection(deviceId, connection_name);
+          }, 5000);
+        } else {
+          console.log(
+            `[WA-LOGOUT] Sessão do deviceId=${deviceId} desconectada permanentemente. Limpando dados de autenticação...`
+          );
+          
+          // Limpar dados de autenticação quando loggedOut
+          try {
+            const authFolder = path.join(__dirname, "auth", deviceId);
+            if (fs.existsSync(authFolder)) {
+              fs.rmSync(authFolder, { recursive: true, force: true });
+              console.log(`[WA-LOGOUT] Pasta de autenticação removida para deviceId=${deviceId}`);
+            }
+          } catch (error) {
+            console.error(`[WA-LOGOUT] Erro ao limpar pasta de autenticação:`, error);
           }
-        } catch (error) {
-          console.error(`[WA-LOGOUT] Erro ao limpar pasta de autenticação:`, error);
+          
+          // Remover do mapa de conexões
+          connections.delete(deviceId);
+          qrCodes.delete(deviceId);
+          
+          console.log(`[WA-LOGOUT] DeviceId=${deviceId} removido dos mapas de conexão`);
         }
-        
-        // Remover do mapa de conexões
-        connections.delete(deviceId);
-        qrCodes.delete(deviceId);
-        
-        console.log(`[WA-LOGOUT] DeviceId=${deviceId} removido dos mapas de conexão`);
       }
-    }
 
-    if (update.qr) {
-      qrCodes.set(deviceId, update.qr);
-      console.log(
-        `[WA-QR] QR Code string salvo via connection.update para deviceId=${deviceId}`
-      );
-    }
-  });
-
-  client.ev.on("creds.update", saveCreds);
-  console.log("[WA-START] Eventos de conexão e credenciais configurados");
-
-  // Sempre tentar gerar o QR code, independente do estado
-  client.ev.on("qr", (qr) => {
-    qrcode.toDataURL(qr, (err, url) => {
-      if (!err) {
-        qrCodes.set(deviceId, url); // Salva o base64
-        console.log(`[WA-QR] QR Code base64 salvo para deviceId=${deviceId}`);
-      } else {
-        console.error("[WA-QR] Erro ao gerar QR Code base64:", err);
+      if (update.qr) {
+        qrCodes.set(deviceId, update.qr);
+        console.log(
+          `[WA-QR] QR Code string salvo via connection.update para deviceId=${deviceId}`
+        );
       }
     });
-  });
 
-  client.ev.on("messages.upsert", async ({ messages }) => {
-    try {
-      const message = messages[0];
-      if (!message.key.fromMe && message.message) {
-        const messageContent =
-          message.message.conversation ||
-          message.message.extendedTextMessage?.text ||
-          message.message.imageMessage?.caption ||
-          "";
+    client.ev.on("creds.update", saveCreds);
+    console.log("[WA-START] Eventos de conexão e credenciais configurados");
 
-        const senderNumber = message.key.remoteJid.split("@")[0];
-        const chatbot = getChatbot(senderNumber);
+    // Adicionar logs para eventos de estado
+    client.ev.on("state", (state) => {
+      console.log(`[WA-STATE] ${deviceId}: Estado atualizado:`, state);
+    });
 
-        if (chatbot && chatbot.isActive) {
-          const response = await mistralService.generateResponse(
-            messageContent,
-            chatbot.personality
-          );
-          await client.sendMessage(message.key.remoteJid, { text: response });
+    // Adicionar logs para eventos de sincronização
+    client.ev.on("sync", (sync) => {
+      console.log(`[WA-SYNC] ${deviceId}: Sincronização:`, sync);
+    });
+
+    // Sempre tentar gerar o QR code, independente do estado
+    client.ev.on("qr", (qr) => {
+      qrcode.toDataURL(qr, (err, url) => {
+        if (!err) {
+          qrCodes.set(deviceId, url); // Salva o base64
+          console.log(`[WA-QR] QR Code base64 salvo para deviceId=${deviceId}`);
+        } else {
+          console.error("[WA-QR] Erro ao gerar QR Code base64:", err);
         }
-      }
-    } catch (error) {
-      console.error("Erro ao processar mensagem:", error);
-    }
-  });
+      });
+    });
 
-  return client;
+    client.ev.on("messages.upsert", async ({ messages }) => {
+      try {
+        const message = messages[0];
+        if (!message.key.fromMe && message.message) {
+          const messageContent =
+            message.message.conversation ||
+            message.message.extendedTextMessage?.text ||
+            message.message.imageMessage?.caption ||
+            "";
+
+          const senderNumber = message.key.remoteJid.split("@")[0];
+          const chatbot = getChatbot(senderNumber);
+
+          if (chatbot && chatbot.isActive) {
+            const response = await mistralService.generateResponse(
+              messageContent,
+              chatbot.personality
+            );
+            await client.sendMessage(message.key.remoteJid, { text: response });
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao processar mensagem:", error);
+      }
+    });
+
+    return client;
+  } catch (error) {
+    console.error(`[WA-START-ERROR] Erro ao iniciar conexão para deviceId=${deviceId}:`, error);
+    
+    // Limpar pasta de autenticação em caso de erro
+    try {
+      if (fs.existsSync(authFolder)) {
+        fs.rmSync(authFolder, { recursive: true, force: true });
+        console.log(`[WA-START-ERROR] Pasta de autenticação limpa para deviceId=${deviceId}`);
+      }
+    } catch (cleanupError) {
+      console.error(`[WA-START-ERROR] Erro ao limpar pasta de autenticação:`, cleanupError);
+    }
+    
+    throw error;
+  }
 };
 
 // Função para gerar QR Code
@@ -539,15 +565,20 @@ app.post("/api/whatsapp/send", async (req, res) => {
     const sendPromise = (async () => {
       try {
         console.log("[SEND] Iniciando verificação se número tem WhatsApp...");
-        // Verifica se o número tem WhatsApp
-        const exists = await connection.client.onWhatsApp(formattedNumber);
-        console.log("[SEND] Resultado onWhatsApp:", exists);
-        if (!exists || !exists[0]?.exists) {
-          console.error(
-            "[SEND] Número não possui WhatsApp:",
-            formattedNumberRaw
-          );
-          throw new Error("O número informado não possui WhatsApp.");
+        // Verifica se o número tem WhatsApp - compatível com versão 6.7.18
+        try {
+          const exists = await connection.client.onWhatsApp(formattedNumber);
+          console.log("[SEND] Resultado onWhatsApp:", exists);
+          if (!exists || !exists[0]?.exists) {
+            console.error(
+              "[SEND] Número não possui WhatsApp:",
+              formattedNumberRaw
+            );
+            throw new Error("O número informado não possui WhatsApp.");
+          }
+        } catch (error) {
+          console.log("[SEND] Erro ao verificar WhatsApp, continuando envio...", error.message);
+          // Em caso de erro na verificação, continua com o envio
         }
 
         console.log("[SEND] Número possui WhatsApp, preparando envio...");

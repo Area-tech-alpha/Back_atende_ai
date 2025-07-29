@@ -14,7 +14,8 @@
     "job": "node processScheduledMessages.js",
     "start:job": "node processScheduledMessages.js",
     "deploy:build": "npm run build && npm start",
-    "start": "node server.js"
+    "start": "node server.js",
+    "cleanup:auth": "node cleanupAuth.js"
   },
   "type": "module",
   "dependencies": {

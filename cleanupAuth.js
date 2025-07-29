@@ -1,91 +1,83 @@
 import fs from 'fs';
 import path from 'path';
-import { supabase } from './src/lib/supabase-backend.js';
+import { fileURLToPath } from 'url';
 
-console.log("=== LIMPEZA DE AUTENTICAÇÃO ===");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Função para limpar pasta de autenticação
-function cleanupAuthFolder(deviceId) {
-  const authFolder = path.join(process.cwd(), "auth", deviceId);
-  
-  if (fs.existsSync(authFolder)) {
-    try {
-      fs.rmSync(authFolder, { recursive: true, force: true });
-      console.log(`✅ Pasta de autenticação removida para: ${deviceId}`);
-      return true;
-    } catch (error) {
-      console.error(`❌ Erro ao remover pasta ${deviceId}:`, error.message);
-      return false;
-    }
-  } else {
-    console.log(`ℹ️ Pasta não encontrada para: ${deviceId}`);
-    return true;
-  }
+/**
+ * Script para limpar pastas de autenticação corrompidas do Baileys
+ * Executar quando houver problemas de sincronização de estado
+ */
+
+const authDir = path.join(__dirname, 'auth');
+
+console.log('🔧 Iniciando limpeza de autenticação do Baileys...');
+
+if (!fs.existsSync(authDir)) {
+  console.log('📁 Pasta auth não encontrada, criando...');
+  fs.mkdirSync(authDir, { recursive: true });
+  console.log('✅ Pasta auth criada com sucesso');
+  process.exit(0);
 }
 
-// Função para verificar campanhas no banco
-async function checkCampaigns() {
-  console.log("\n=== VERIFICANDO CAMPANHAS NO BANCO ===");
+try {
+  const deviceFolders = fs.readdirSync(authDir);
   
-  try {
-    // Verificar todas as campanhas
-    const { data: allCampaigns, error: allError } = await supabase
-      .from("mensagem_evolution")
-      .select("id, name, status, data_de_envio, device_id");
+  if (deviceFolders.length === 0) {
+    console.log('📁 Pasta auth está vazia');
+    process.exit(0);
+  }
+
+  console.log(`📁 Encontradas ${deviceFolders.length} pastas de dispositivos:`);
+  
+  let cleanedCount = 0;
+  let keptCount = 0;
+
+  for (const deviceId of deviceFolders) {
+    const devicePath = path.join(authDir, deviceId);
+    const credsFile = path.join(devicePath, 'creds.json');
     
-    if (allError) {
-      console.error("❌ Erro ao buscar campanhas:", allError);
-      return;
-    }
+    console.log(`\n🔍 Verificando dispositivo: ${deviceId}`);
     
-    console.log(`📊 Total de campanhas no banco: ${allCampaigns?.length || 0}`);
-    
-    if (allCampaigns && allCampaigns.length > 0) {
-      console.log("\n📋 Campanhas encontradas:");
-      allCampaigns.forEach(campaign => {
-        console.log(`  - ID: ${campaign.id} | Nome: ${campaign.name} | Status: ${campaign.status} | Device: ${campaign.device_id}`);
-      });
-      
-      // Verificar campanhas com status null ou Scheduled
-      const pendingCampaigns = allCampaigns.filter(c => c.status === null || c.status === 'Scheduled');
-      console.log(`\n⏳ Campanhas pendentes (null/Scheduled): ${pendingCampaigns.length}`);
-      
-      if (pendingCampaigns.length > 0) {
-        console.log("📋 Campanhas pendentes:");
-        pendingCampaigns.forEach(campaign => {
-          console.log(`  - ID: ${campaign.id} | Nome: ${campaign.name} | Status: ${campaign.status} | Device: ${campaign.device_id}`);
-        });
+    // Verificar se a pasta tem arquivos de credenciais válidos
+    if (fs.existsSync(credsFile)) {
+      try {
+        const credsData = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+        
+        if (credsData.me && credsData.me.id) {
+          console.log(`✅ Dispositivo ${deviceId}: Credenciais válidas encontradas`);
+          keptCount++;
+        } else {
+          console.log(`❌ Dispositivo ${deviceId}: Credenciais inválidas, removendo...`);
+          fs.rmSync(devicePath, { recursive: true, force: true });
+          cleanedCount++;
+        }
+      } catch (error) {
+        console.log(`❌ Dispositivo ${deviceId}: Erro ao ler credenciais, removendo...`);
+        fs.rmSync(devicePath, { recursive: true, force: true });
+        cleanedCount++;
       }
+    } else {
+      console.log(`❌ Dispositivo ${deviceId}: Arquivo de credenciais não encontrado, removendo...`);
+      fs.rmSync(devicePath, { recursive: true, force: true });
+      cleanedCount++;
     }
-    
-  } catch (error) {
-    console.error("❌ Erro ao verificar campanhas:", error);
   }
+
+  console.log(`\n📊 Resumo da limpeza:`);
+  console.log(`✅ Dispositivos mantidos: ${keptCount}`);
+  console.log(`🗑️ Dispositivos removidos: ${cleanedCount}`);
+  console.log(`📁 Total de dispositivos processados: ${deviceFolders.length}`);
+
+  if (cleanedCount > 0) {
+    console.log('\n⚠️ ATENÇÃO: Alguns dispositivos foram removidos.');
+    console.log('📱 Será necessário reconectar esses dispositivos via QR Code.');
+  }
+
+} catch (error) {
+  console.error('❌ Erro durante a limpeza:', error);
+  process.exit(1);
 }
 
-// Função principal
-async function main() {
-  console.log("🧹 Iniciando limpeza de autenticação...");
-  
-  // Listar pastas de autenticação
-  const authDir = path.join(process.cwd(), "auth");
-  if (fs.existsSync(authDir)) {
-    const deviceFolders = fs.readdirSync(authDir);
-    console.log(`📁 Pastas de autenticação encontradas: ${deviceFolders.length}`);
-    
-    for (const deviceId of deviceFolders) {
-      console.log(`\n🔍 Verificando: ${deviceId}`);
-      cleanupAuthFolder(deviceId);
-    }
-  } else {
-    console.log("📁 Pasta auth não encontrada");
-  }
-  
-  // Verificar campanhas
-  await checkCampaigns();
-  
-  console.log("\n✅ Limpeza concluída!");
-}
-
-// Executar
-main().catch(console.error); 
+console.log('\n✅ Limpeza concluída com sucesso!'); 
