@@ -176,15 +176,22 @@ const startConnection = async (deviceId, connection_name) => {
       fs.mkdirSync(authFolder, { recursive: true });
     }
     
+    // Verificar se já houve muitas tentativas de reconexão para este deviceId
+    const attempts = reconnectionAttempts.get(deviceId);
+    if (attempts && attempts.count >= 2) {
+      console.log(`[WA-START] Muitas tentativas de reconexão detectadas (${attempts.count}), limpando pasta antes de tentar novamente...`);
+      fs.rmSync(authFolder, { recursive: true, force: true });
+      fs.mkdirSync(authFolder, { recursive: true });
+    }
+    
     const { state, saveCreds } = await useMultiFileAuthState(authFolder);
     console.log(
       "[WA-START] Estado de autenticação carregado:",
-      state.creds ? "Autenticado" : "Não autenticado"
+      state.creds && state.creds.me ? "Autenticado" : "Não autenticado"
     );
 
     console.log("[WA-START] Criando cliente Baileys...");
     console.log(`[WA-START] Configurações para deviceId=${deviceId}:`, {
-      version: [2, 2323, 4],
       syncFullHistory: false,
       fireInitQueries: true,
       emitOwnEvents: false,
@@ -199,7 +206,7 @@ const startConnection = async (deviceId, connection_name) => {
       markOnlineOnConnect: false,
       deviceId: deviceId,
       // Configurações otimizadas para versão 6.7.18
-      version: [2, 2323, 4], // Versão específica do WhatsApp
+      // Removido version hardcoded - deixar Baileys usar versão automática
       syncFullHistory: false, // Não sincronizar histórico completo
       fireInitQueries: true,
       shouldIgnoreJid: jid => isJidBroadcast(jid),
@@ -432,13 +439,17 @@ const createNewConnection = async (deviceId, authFolder) => {
 
     const client = makeWASocket({
       auth: state,
-      printQRInTerminal: true,
       browser: ["Chrome (Linux)", "", ""],
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 60000,
       retryRequestDelayMs: 250,
       markOnlineOnConnect: false,
       deviceId: deviceId,
+      // Configurações compatíveis com 6.7.18
+      syncFullHistory: false,
+      fireInitQueries: true,
+      emitOwnEvents: false,
+      generateHighQualityLinkPreview: false,
     });
 
     return { client, saveCreds };
