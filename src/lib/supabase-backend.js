@@ -1,6 +1,12 @@
+import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://qbezqfbovuyiphkvvnen.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFiZXpxZmJvdnV5aXBoa3Z2bmVuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MzI5ODEzOCwiZXhwIjoyMDY4ODc0MTM4fQ.CqGJvsNQ-n8cw3Kej6dNTUznrdagWYSl3rGeHbZqKa0';
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // precisa ser a service role se o worker faz inserts/updates sem RLS liberado
 
-export const supabase = createClient(supabaseUrl, supabaseKey); 
+if (!supabaseUrl || !supabaseKey) {
+  console.error('[supabase-backend] Variáveis de ambiente ausentes: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY');
+  throw new Error('Configuração do Supabase ausente');
+}
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
