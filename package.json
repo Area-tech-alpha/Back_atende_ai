@@ -16,7 +16,7 @@
     "deploy:build": "npm run build && npm start",
     "start": "node server.js",
     "start:worker": "node processScheduledMessages.js",
-    "postinstall": "if [ \"$BUILD_FRONT\" != \"0\" ]; then npm run build; else echo 'Skipping front build'; fi",
+    "postinstall": "node -e \"process.env.BUILD_FRONT !== '0' ? require('child_process').execSync('npm run build', {stdio: 'inherit'}) : console.log('Skipping front build')\"",
     "cleanup:auth": "node cleanupAuth.js",
     "force:cleanup": "node forceCleanup.js"
   },
