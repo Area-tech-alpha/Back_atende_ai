@@ -1,7 +1,5 @@
-import dotenv from "dotenv";
-dotenv.config();
-import express from "express";
-import cors from "cors";
+import express from 'express';
+import cors from 'cors';
 import {
   useMultiFileAuthState,
   DisconnectReason,
@@ -15,44 +13,25 @@ import path from "path";
 import axios from "axios";
 import crypto from "crypto";
 import { rimraf } from "rimraf";
-import mistralService from "./src/services/mistralService.js";
+import mistralService from "../src/services/mistralService.js";
 import {
   setChatbot,
   removeChatbot,
   toggleChatbot,
   getChatbot,
   listChatbots,
-} from "./src/config/chatbots.js";
+} from "../src/config/chatbots.js";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const router = express.Router();
+
 // Polyfill para o crypto no ambiente do Railway
 if (typeof global.crypto === "undefined") {
   global.crypto = crypto;
 }
-
-const app = express();
-const port = process.env.PORT || 3001;
-
-// Configuração do CORS
-app.use(
-  cors({
-    origin: [
-      process.env.FRONTEND_URL || "*",
-      "http://localhost:4000",
-      "https://lionchat.tech",
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
-app.use(express.json());
-
-// Servir arquivos estáticos do frontend
-app.use(express.static(path.join(__dirname, "dist")));
 
 // Armazenar conexões ativas
 const connections = new Map();
@@ -121,7 +100,7 @@ function formatPhoneNumber(phone) {
 const startConnection = async (deviceId, connection_name) => {
   console.log("[WA-START] Iniciando conexão para deviceId:", deviceId);
 
-  const authFolder = path.join(__dirname, "auth", deviceId);
+  const authFolder = path.join(__dirname, "..", "auth", deviceId);
 
   // Verificar se a pasta existe e tem dados válidos
   if (fs.existsSync(authFolder)) {
@@ -288,7 +267,7 @@ const startConnection = async (deviceId, connection_name) => {
           // Verificar se as credenciais estão realmente corrompidas antes de limpar
           let shouldCleanup = false;
           try {
-            const authFolder = path.join(__dirname, "auth", deviceId);
+            const authFolder = path.join(__dirname, "..", "auth", deviceId);
             const credsFile = path.join(authFolder, "creds.json");
 
             if (fs.existsSync(credsFile)) {
@@ -320,7 +299,7 @@ const startConnection = async (deviceId, connection_name) => {
           // Só limpar se realmente necessário
           if (shouldCleanup) {
             try {
-              const authFolder = path.join(__dirname, "auth", deviceId);
+              const authFolder = path.join(__dirname, "..", "auth", deviceId);
               if (fs.existsSync(authFolder)) {
                 fs.rmSync(authFolder, { recursive: true, force: true });
                 console.log(
@@ -372,7 +351,7 @@ const startConnection = async (deviceId, connection_name) => {
 
           // Limpar dados de autenticação quando loggedOut
           try {
-            const authFolder = path.join(__dirname, "auth", deviceId);
+            const authFolder = path.join(__dirname, "..", "auth", deviceId);
             if (fs.existsSync(authFolder)) {
               fs.rmSync(authFolder, { recursive: true, force: true });
               console.log(
@@ -480,50 +459,19 @@ const startConnection = async (deviceId, connection_name) => {
   }
 };
 
-// Função para gerar QR Code
-const generateQR = async (client) => {
-  return new Promise((resolve, reject) => {
-    client.ev.on("qr", (qr) => {
-      qrcode.toDataURL(qr, (err, url) => {
-        if (err) {
-          console.error("Erro ao gerar QR Code:", err);
-          reject(err);
-        }
-        resolve(url);
-      });
-    });
+// Health check endpoint
+router.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || "development",
+    version: "2.0.0"
   });
-};
-
-// Função para criar nova conexão
-const createNewConnection = async (deviceId, authFolder) => {
-  try {
-    const { state, saveCreds } = await useMultiFileAuthState(authFolder);
-
-    const client = makeWASocket({
-      auth: state,
-      browser: ["Chrome (Linux)", "", ""],
-      connectTimeoutMs: 60000,
-      defaultQueryTimeoutMs: 60000,
-      retryRequestDelayMs: 250,
-      markOnlineOnConnect: false,
-      deviceId: deviceId,
-      // Configurações compatíveis com 6.7.18
-      syncFullHistory: false,
-      fireInitQueries: true,
-      emitOwnEvents: false,
-      generateHighQualityLinkPreview: false,
-    });
-
-    return { client, saveCreds };
-  } catch (error) {
-    console.error("Erro ao criar nova conexão:", error);
-    throw error;
-  }
-};
+});
 
 // Rota para conectar ao WhatsApp
-app.post("/api/whatsapp/connect", async (req, res) => {
+router.post("/whatsapp/connect", async (req, res) => {
   const { deviceId, connectionName } = req.body;
   console.log("[WA-CONNECT] Iniciando conexão para deviceId:", deviceId);
 
@@ -583,7 +531,7 @@ app.post("/api/whatsapp/connect", async (req, res) => {
 });
 
 // Rota para verificar status da conexão
-app.get("/api/whatsapp/status/:deviceId", (req, res) => {
+router.get("/whatsapp/status/:deviceId", (req, res) => {
   try {
     const { deviceId } = req.params;
 
@@ -611,7 +559,7 @@ app.get("/api/whatsapp/status/:deviceId", (req, res) => {
 });
 
 // Rota para listar dispositivos conectados
-app.get("/api/whatsapp/devices", (req, res) => {
+router.get("/whatsapp/devices", (req, res) => {
   try {
     const devices = Array.from(connections.entries()).map(
       ([deviceId, connection]) => ({
@@ -632,7 +580,7 @@ app.get("/api/whatsapp/devices", (req, res) => {
 });
 
 // Rota para limpar dados de autenticação de um dispositivo
-app.delete("/api/whatsapp/devices/:deviceId/auth", (req, res) => {
+router.delete("/whatsapp/devices/:deviceId/auth", (req, res) => {
   try {
     const { deviceId } = req.params;
 
@@ -641,7 +589,7 @@ app.delete("/api/whatsapp/devices/:deviceId/auth", (req, res) => {
     }
 
     // Limpar pasta de autenticação
-    const authFolder = path.join(__dirname, "auth", deviceId);
+    const authFolder = path.join(__dirname, "..", "auth", deviceId);
     if (fs.existsSync(authFolder)) {
       fs.rmSync(authFolder, { recursive: true, force: true });
       console.log(
@@ -666,8 +614,8 @@ app.delete("/api/whatsapp/devices/:deviceId/auth", (req, res) => {
   }
 });
 
-// Rota para enviar mensagem (corrigida)
-app.post("/api/whatsapp/send", async (req, res) => {
+// Rota para enviar mensagem
+router.post("/whatsapp/send", async (req, res) => {
   try {
     const { deviceId, number, message, imagemUrl, caption } = req.body;
     console.log("[SEND] Requisição recebida:", {
@@ -829,7 +777,7 @@ app.post("/api/whatsapp/send", async (req, res) => {
 });
 
 // Endpoint para buscar o QR code atual
-app.get("/api/whatsapp/qr/:deviceId", (req, res) => {
+router.get("/whatsapp/qr/:deviceId", (req, res) => {
   const { deviceId } = req.params;
   const qr = qrCodes.get(deviceId);
   if (qr) {
@@ -839,9 +787,9 @@ app.get("/api/whatsapp/qr/:deviceId", (req, res) => {
 });
 
 // Rota para deletar sessão
-app.delete("/api/whatsapp/session/:deviceId", (req, res) => {
+router.delete("/whatsapp/session/:deviceId", (req, res) => {
   const { deviceId } = req.params;
-  const authFolder = path.join(__dirname, "auth", deviceId);
+  const authFolder = path.join(__dirname, "..", "auth", deviceId);
 
   // Verifica se a pasta existe antes de tentar deletar
   if (!fs.existsSync(authFolder)) {
@@ -864,7 +812,7 @@ app.delete("/api/whatsapp/session/:deviceId", (req, res) => {
 });
 
 // Adicionar novas rotas para gerenciar chatbots
-app.post("/api/chatbots", (req, res) => {
+router.post("/chatbots", (req, res) => {
   const { phoneNumber, name, personality } = req.body;
 
   if (!phoneNumber || !name || !personality) {
@@ -875,13 +823,13 @@ app.post("/api/chatbots", (req, res) => {
   res.json({ message: "Chatbot configurado com sucesso" });
 });
 
-app.delete("/api/chatbots/:phoneNumber", (req, res) => {
+router.delete("/chatbots/:phoneNumber", (req, res) => {
   const { phoneNumber } = req.params;
   removeChatbot(phoneNumber);
   res.json({ message: "Chatbot removido com sucesso" });
 });
 
-app.patch("/api/chatbots/:phoneNumber/toggle", (req, res) => {
+router.patch("/chatbots/:phoneNumber/toggle", (req, res) => {
   const { phoneNumber } = req.params;
   const { isActive } = req.body;
 
@@ -891,13 +839,13 @@ app.patch("/api/chatbots/:phoneNumber/toggle", (req, res) => {
   });
 });
 
-app.get("/api/chatbots", (req, res) => {
+router.get("/chatbots", (req, res) => {
   const chatbots = listChatbots();
   res.json(chatbots);
 });
 
 // Rota para listar agentes da Mistral via proxy seguro
-app.get("/api/mistral/agents", async (req, res) => {
+router.get("/mistral/agents", async (req, res) => {
   try {
     const response = await axios.get("https://api.mistral.ai/v1/agents", {
       headers: {
@@ -917,7 +865,7 @@ app.get("/api/mistral/agents", async (req, res) => {
 });
 
 // Rota para criar um agente na Mistral
-app.post("/api/mistral/agents", async (req, res) => {
+router.post("/mistral/agents", async (req, res) => {
   try {
     const response = await axios.post(
       "https://api.mistral.ai/v1/agents",
@@ -941,7 +889,7 @@ app.post("/api/mistral/agents", async (req, res) => {
 });
 
 // Rota para listar modelos da Mistral
-app.get("/api/mistral/models", async (req, res) => {
+router.get("/mistral/models", async (req, res) => {
   try {
     const response = await axios.get("https://api.mistral.ai/v1/models", {
       headers: {
@@ -1017,7 +965,7 @@ setInterval(async () => {
   console.log("[AUTO-CLEANUP] Verificando autenticações corrompidas...");
 
   try {
-    const authDir = path.join(__dirname, "auth");
+    const authDir = path.join(__dirname, "..", "auth");
     if (!fs.existsSync(authDir)) return;
 
     const deviceFolders = fs.readdirSync(authDir);
@@ -1076,9 +1024,9 @@ setInterval(async () => {
 }, 30 * 60 * 1000); // Verificar a cada 30 minutos
 
 // Rota para monitorar sistema automático
-app.get("/api/debug/auto-cleanup", (req, res) => {
+router.get("/debug/auto-cleanup", (req, res) => {
   try {
-    const authDir = path.join(__dirname, "auth");
+    const authDir = path.join(__dirname, "..", "auth");
     const deviceStatus = [];
 
     if (fs.existsSync(authDir)) {
@@ -1131,7 +1079,7 @@ app.get("/api/debug/auto-cleanup", (req, res) => {
 });
 
 // Rota para monitorar status das reconexões
-app.get("/api/debug/reconnections", (req, res) => {
+router.get("/debug/reconnections", (req, res) => {
   try {
     const reconnectionStatus = Array.from(reconnectionAttempts.entries()).map(
       ([deviceId, attempts]) => ({
@@ -1165,7 +1113,7 @@ app.get("/api/debug/reconnections", (req, res) => {
 });
 
 // Rota para debug - verificar status dos caches
-app.get("/api/debug/caches", (req, res) => {
+router.get("/debug/caches", (req, res) => {
   try {
     const now = Date.now();
     const pendingSendsArray = Array.from(pendingSends.entries()).map(
@@ -1206,11 +1154,4 @@ app.get("/api/debug/caches", (req, res) => {
   }
 });
 
-// Rota para servir o frontend em todas as outras rotas
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "dist", "index.html"));
-});
-
-app.listen(port, "0.0.0.0", () => {
-  console.log(`Servidor rodando na porta ${port}`);
-});
+export default router; 

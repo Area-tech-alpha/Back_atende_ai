@@ -1,0 +1,8 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile" # sem ../
+
+[deploy]
+healthcheckPath = "/health" # ou "/api/health" se for isso mesmo no backend
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

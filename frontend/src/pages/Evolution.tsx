@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { Plus, Loader2, X, QrCode, Trash2, RefreshCw, Webhook, MessageSquare } from 'lucide-react';
 
 interface Instance {

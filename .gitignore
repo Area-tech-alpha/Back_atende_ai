@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 
 .vercel
+
+/frontend/.env
+/backend/.env
+.env
