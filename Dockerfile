@@ -1,32 +1,40 @@
-
+# ========================
+# Etapa 1: build do frontend
+# ========================
 FROM node:20-alpine AS frontend
 
 WORKDIR /app/frontend
 
-COPY ./frontend/package*.json ./
+COPY frontend/package*.json ./
 RUN npm install --legacy-peer-deps
 
-COPY ./frontend/ ./
+COPY frontend/ ./
 RUN npm run build
 
 
-
-FROM node:20-alpine
+# ========================
+# Etapa 2: backend + servir frontend
+# ========================
+FROM node:20-slim
 
 WORKDIR /app
 
-RUN apk add --no-cache python3 make g++ libc6-compat curl
+# Dependências do sistema (se Baileys ou QRCode precisar)
+RUN apt-get update && apt-get install -y python3 make g++ curl && rm -rf /var/lib/apt/lists/*
 
-COPY ./backend/package*.json ./backend/
+# Copia pacotes do backend
+COPY backend/package*.json ./backend/
 WORKDIR /app/backend
 RUN npm install --legacy-peer-deps
 
-COPY ./backend/ ./
+# Copia código do backend
+COPY backend/ ./
 
+# Copia build do frontend
 COPY --from=frontend /app/frontend/dist ./dist
 
-COPY ./backend/auth ./auth
-COPY ./api /app/api
+# Copia a pasta da API
+COPY api/ /app/api/
 
 ENV NODE_ENV=production
 ENV PORT=3000
