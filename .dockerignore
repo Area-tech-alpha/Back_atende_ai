@@ -1,9 +1,6 @@
 
 **/node_modules
 
-**/dist
-**/build
-
 **/.env
 **/.env.*.local
 **/.DS_Store
@@ -16,15 +13,11 @@
 **/*.log
 *.local
 
+
 .git
 .gitignore
-Dockerfile
-docker-compose.yml
 .dockerignore
-
 
 package-lock.json
 pnpm-lock.yaml
 yarn.lock
-
-
