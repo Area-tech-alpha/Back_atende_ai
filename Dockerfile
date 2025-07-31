@@ -5,16 +5,18 @@ FROM node:20-alpine AS frontend
 
 WORKDIR /app/frontend
 
-# Copia apenas o package para cache inteligente
-COPY frontend/package*.json ./
+# Copia package.json e lock para cache inteligente
+COPY ./frontend/package*.json ./
 
+# Instala dependências do frontend
 RUN npm install --legacy-peer-deps
 
-# Copia todo o frontend
-COPY frontend/ ./
+# Copia todo o código-fonte do frontend
+COPY ./frontend/ ./
 
-# Gera build do frontend (Vite)
+# Gera build do Vite
 RUN npm run build
+
 
 # ========================
 # Etapa 2: backend + servir frontend
@@ -26,22 +28,24 @@ WORKDIR /app
 # Instalar dependências do sistema necessárias para o Baileys
 RUN apk add --no-cache python3 make g++ libc6-compat curl
 
-# Copiar apenas os arquivos do backend
-COPY backend/package*.json ./backend/
+# Copiar arquivos do backend
+COPY ./backend/package*.json ./backend/
 
 WORKDIR /app/backend
+
+# Instalar dependências do backend
 RUN npm install --legacy-peer-deps
 
-# Copiar o restante do backend
-COPY backend/ ./
+# Copiar código-fonte do backend
+COPY ./backend/ ./
 
-# Copiar build do frontend gerado na etapa anterior para dentro do backend
+# Copiar build do frontend gerado anteriormente
 COPY --from=frontend /app/frontend/dist ./dist
 
-# Criar pasta auth com permissões adequadas
+# Criar pasta auth com permissões
 RUN mkdir -p auth && chmod 755 auth
 
-# Configurar variáveis de ambiente (pode ser sobrescrito em tempo de execução)
+# Variáveis de ambiente padrão (podem ser sobrescritas em produção)
 ENV NODE_ENV=production
 ENV PORT=3000
 
@@ -52,5 +56,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3000/api/health || exit 1
 
-# Iniciar o servidor (assumindo que server.js serve frontend também por ./dist)
+# Comando padrão
 CMD ["node", "server.js"]
