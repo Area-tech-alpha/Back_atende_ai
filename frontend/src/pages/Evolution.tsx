@@ -50,7 +50,7 @@ interface Assistant {
   model: string;
 }
 
-// const API_KEY = 'f5ec3e06222808fab768cfbb1de84a2c'; // CHAVE REMOVIDA POR SEGURANÇA
+const API_KEY = 'f5ec3e06222808fab768cfbb1de84a2c'; 
 const FETCH_URL = 'https://evolution2.assessorialpha.com/instance/fetchInstances';
 const CREATE_URL = 'https://evolution2.assessorialpha.com/instance/create';
 const CONNECT_URL = 'https://evolution2.assessorialpha.com/instance/connect/';
@@ -183,20 +183,20 @@ const Instances: React.FC = () => {
         ...form,
         qrcode: true,
         integration: 'WHATSAPP-BAILEYS',
-        webhook_by_events: false, // DESABILITADO
-        events: [], // REMOVIDO
+           webhook_by_events: true,
+        events: ['APPLICATION_STARTUP'],
         reject_call: true,
         msg_call: '',
         groups_ignore: true,
-        always_online: false, // DESABILITADO
+        always_online: true,
         read_messages: true,
         read_status: true,
-        websocket_enabled: false, // DESABILITADO
-        websocket_events: [], // REMOVIDO
-        rabbitmq_enabled: false, // DESABILITADO
-        rabbitmq_events: [], // REMOVIDO
-        sqs_enabled: false, // DESABILITADO
-        sqs_events: [], // REMOVIDO
+        websocket_enabled: true,
+        websocket_events: ['APPLICATION_STARTUP'],
+        rabbitmq_enabled: true,
+        rabbitmq_events: ['APPLICATION_STARTUP'],
+        sqs_enabled: true,
+        sqs_events: ['APPLICATION_STARTUP'],
         typebot_url: '',
         typebot: '',
         typebot_expire: 123,
