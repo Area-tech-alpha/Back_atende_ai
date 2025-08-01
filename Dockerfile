@@ -23,7 +23,5 @@ COPY backend/ ./backend/
 
 COPY --from=frontend /app/frontend/dist ./dist
 
-COPY api/ ./api/
-
 ENV NODE_ENV=production
 ENV PORT=3000
