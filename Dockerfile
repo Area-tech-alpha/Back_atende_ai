@@ -1,27 +1,41 @@
-FROM node:20-alpine AS frontend
+# Etapa 1 - Build do frontend
+FROM node:20 AS frontend
 
 WORKDIR /app/frontend
-
 COPY frontend/package*.json ./
-RUN npm install --legacy-peer-deps
-
-COPY frontend/ ./
+RUN npm install
+COPY frontend/ .
 RUN npm run build
 
-
-
-FROM node:20-slim
+# Etapa 2 - Build do backend
+FROM node:20 AS backend
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y python3 make g++ curl && rm -rf /var/lib/apt/lists/*
-
+# Copiar backend
 COPY backend/package*.json ./backend/
-RUN cd backend && npm install --legacy-peer-deps
+RUN cd backend && npm install
 
-COPY backend/ ./backend/
-
+# Copiar código do backend e dist do frontend
+COPY backend ./backend
 COPY --from=frontend /app/frontend/dist ./dist
 
+# Etapa final - execução baseada na variável SERVICE
+FROM node:20 AS final
+
+WORKDIR /app
+
+COPY --from=backend /app/backend ./backend
+COPY --from=backend /app/dist ./dist
+
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3001
+
+# Comando de inicialização dinâmica
+CMD if [ "$SERVICE" = "frontend" ]; then \
+      npm install -g serve && serve -s dist -l 4000; \
+    elif [ "$SERVICE" = "worker" ]; then \
+      cd backend && npm run start:worker; \
+    else \
+      cd backend && npm run start; \
+    fi
