@@ -33,7 +33,7 @@ if (typeof global.crypto === "undefined") {
   global.crypto = crypto;
 }
 
-// Armazenar conexões ativas
+// Armazenar conexões ativas com limite de memória
 const connections = new Map();
 const qrCodes = new Map(); // deviceId -> qr string
 
@@ -43,9 +43,25 @@ const recentSends = new Map(); // deviceId_number -> timestamp
 
 // Sistema de controle de reconexões
 const reconnectionAttempts = new Map(); // deviceId -> { count, lastAttempt, backoff }
+
+// LIMITES DE MEMÓRIA
+const MAX_CONNECTIONS = 50;
+const MAX_QR_CODES = 20;
+const MAX_PENDING_SENDS = 100;
+const MAX_RECENT_SENDS = 1000;
 const MAX_RECONNECTION_ATTEMPTS = 5;
 const INITIAL_BACKOFF = 5000; // 5 segundos
 const MAX_BACKOFF = 300000; // 5 minutos
+
+// Função para limpar Maps quando excedem limite
+function cleanupMap(map, maxSize, name) {
+  if (map.size > maxSize) {
+    const entriesToDelete = map.size - maxSize;
+    const keys = Array.from(map.keys()).slice(0, entriesToDelete);
+    keys.forEach(key => map.delete(key));
+    console.log(`[MEMORY-CLEANUP] ${entriesToDelete} entradas removidas de ${name}`);
+  }
+}
 
 function getReconnectionDelay(deviceId) {
   const attempts = reconnectionAttempts.get(deviceId) || {
@@ -96,6 +112,48 @@ function formatPhoneNumber(phone) {
   }
   return cleaned;
 }
+
+// Função para gerar QR Code
+const generateQR = async (client) => {
+  return new Promise((resolve, reject) => {
+    client.ev.on("qr", (qr) => {
+      qrcode.toDataURL(qr, (err, url) => {
+        if (err) {
+          console.error("Erro ao gerar QR Code:", err);
+          reject(err);
+        }
+        resolve(url);
+      });
+    });
+  });
+};
+
+// Função para criar nova conexão
+const createNewConnection = async (deviceId, authFolder) => {
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState(authFolder);
+
+    const client = makeWASocket({
+      auth: state,
+      browser: ["Chrome (Linux)", "", ""],
+      connectTimeoutMs: 60000,
+      defaultQueryTimeoutMs: 60000,
+      retryRequestDelayMs: 250,
+      markOnlineOnConnect: false,
+      deviceId: deviceId,
+      // Configurações compatíveis com 6.7.18
+      syncFullHistory: false,
+      fireInitQueries: true,
+      emitOwnEvents: false,
+      generateHighQualityLinkPreview: false,
+    });
+
+    return { client, saveCreds };
+  } catch (error) {
+    console.error("Erro ao criar nova conexão:", error);
+    throw error;
+  }
+};
 
 const startConnection = async (deviceId, connection_name) => {
   console.log("[WA-START] Iniciando conexão para deviceId:", deviceId);
@@ -920,6 +978,12 @@ function cleanupRecentSends() {
       cleanedCount++;
     }
   }
+
+  // Limpeza adicional de memória
+  cleanupMap(connections, MAX_CONNECTIONS, 'connections');
+  cleanupMap(qrCodes, MAX_QR_CODES, 'qrCodes');
+  cleanupMap(pendingSends, MAX_PENDING_SENDS, 'pendingSends');
+  cleanupMap(recentSends, MAX_RECENT_SENDS, 'recentSends');
 
   console.log(
     `[CLEANUP] Cache limpo. ${cleanedCount} entradas removidas. Restantes: ${recentSends.size}`

@@ -50,7 +50,7 @@ interface Assistant {
   model: string;
 }
 
-const API_KEY = 'f5ec3e06222808fab768cfbb1de84a2c';
+// const API_KEY = 'f5ec3e06222808fab768cfbb1de84a2c'; // CHAVE REMOVIDA POR SEGURANÇA
 const FETCH_URL = 'https://evolution2.assessorialpha.com/instance/fetchInstances';
 const CREATE_URL = 'https://evolution2.assessorialpha.com/instance/create';
 const CONNECT_URL = 'https://evolution2.assessorialpha.com/instance/connect/';
@@ -183,20 +183,20 @@ const Instances: React.FC = () => {
         ...form,
         qrcode: true,
         integration: 'WHATSAPP-BAILEYS',
-        webhook_by_events: true,
-        events: ['APPLICATION_STARTUP'],
+        webhook_by_events: false, // DESABILITADO
+        events: [], // REMOVIDO
         reject_call: true,
         msg_call: '',
         groups_ignore: true,
-        always_online: true,
+        always_online: false, // DESABILITADO
         read_messages: true,
         read_status: true,
-        websocket_enabled: true,
-        websocket_events: ['APPLICATION_STARTUP'],
-        rabbitmq_enabled: true,
-        rabbitmq_events: ['APPLICATION_STARTUP'],
-        sqs_enabled: true,
-        sqs_events: ['APPLICATION_STARTUP'],
+        websocket_enabled: false, // DESABILITADO
+        websocket_events: [], // REMOVIDO
+        rabbitmq_enabled: false, // DESABILITADO
+        rabbitmq_events: [], // REMOVIDO
+        sqs_enabled: false, // DESABILITADO
+        sqs_events: [], // REMOVIDO
         typebot_url: '',
         typebot: '',
         typebot_expire: 123,
@@ -337,6 +337,29 @@ const Instances: React.FC = () => {
       setWebhookError(err instanceof Error ? err.message : 'Erro ao configurar webhook. Tente novamente.');
     } finally {
       setWebhookLoading(false);
+    }
+  };
+
+  // Função para listar assistentes da Mistral AI
+  const listAssistants = async (): Promise<Assistant[]> => {
+    try {
+      const response = await fetch('/api/mistral/agents');
+      if (!response.ok) {
+        throw new Error('Erro ao buscar assistentes');
+      }
+      const data = await response.json();
+      
+      // Se retornou dados mock, usar eles
+      if (data.mock) {
+        return data.agents || [];
+      }
+      
+      // Se retornou dados reais da Mistral
+      return data.data || data.agents || [];
+    } catch (error) {
+      console.error('Erro ao listar assistentes:', error);
+      // Retornar array vazio em caso de erro
+      return [];
     }
   };
 
