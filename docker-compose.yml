@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    ports:
+      - "3000:3000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    command: ["npm", "run", "start:worker"]
+    environment:
+      SUPABASE_URL: https://qbezqfbovuyiphkvvnen.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFiZXpxZmJvdnV5aXBoa3Z2bmVuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MzI5ODEzOCwiZXhwIjoyMDY4ODc0MTM4fQ.CqGJvsNQ-n8cw3Kej6dNTUznrdagWYSl3rGeHbZqKa0

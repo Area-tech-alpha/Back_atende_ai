@@ -1,4 +1,3 @@
-
 FROM node:20-alpine AS frontend
 
 WORKDIR /app/frontend
@@ -11,7 +10,7 @@ RUN npm run build
 
 
 
-FROM node:20-slim
+FROM node:20-slim AS backend
 
 WORKDIR /app/backend
 
@@ -20,9 +19,7 @@ RUN apt-get update && apt-get install -y python3 make g++ curl && rm -rf /var/li
 COPY backend/package*.json ./
 RUN npm install --legacy-peer-deps
 
-
 COPY backend/ ./
-
 
 COPY --from=frontend /app/frontend/dist ../dist
 
