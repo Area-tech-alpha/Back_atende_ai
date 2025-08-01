@@ -23,9 +23,6 @@ COPY backend/ ./backend/
 
 COPY --from=frontend /app/frontend/dist ./dist
 
-# remover a parte abaixo quando a build der certo, somente pra debugar se a estrutura ficou correta 
-RUN echo "===> Estrutura atual do /app antes de copiar /api" && ls -la /app
-
 COPY api/ ./api/
 
 ENV NODE_ENV=production
