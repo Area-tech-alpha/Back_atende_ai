@@ -33,30 +33,25 @@ app.use(cors({
 
 app.use(express.json());
 
-// Servir arquivos estáticos do frontend
+
 app.use(express.static(path.join(__dirname, "..", "dist")));
 
-// Servir arquivos de autenticação
+
 app.use('/auth', express.static('auth'));
 
-// Rotas da API
 app.use('/api', apiRoutes);
 
-// Health check
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-// Criar diretório "auth" se não existir
 ensureAuthDirExists();
 
-// Rota para servir o frontend em todas as outras rotas (SPA)
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "dist", "index.html"));
 });
 
-// Iniciar o servidor com host específico
 app.listen(port, "0.0.0.0", () => {
-  console.log(`✅ API rodando na porta ${port}`);
-  console.log(`📊 Memória inicial: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
+  console.log(`API rodando na porta ${port}`);
+  console.log(`Memória inicial: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
 });
 
 // Monitoramento de memória
