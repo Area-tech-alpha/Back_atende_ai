@@ -1,4 +1,5 @@
 import express from 'express';
+import { processScheduledMessages} from "../utils/processScheduledMessages.js";
 import cors from 'cors';
 import {
   useMultiFileAuthState,
@@ -1217,5 +1218,14 @@ router.get("/debug/caches", (req, res) => {
     });
   }
 });
+router.post('/processScheduledMessages', async (req, res) => {
+  try {
+    const result = await processScheduledMessages();
+    res.status(200).json({ success: true, message: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 
 export default router; 

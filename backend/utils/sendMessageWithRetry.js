@@ -1,120 +1,79 @@
-// utils/sendMessageWithRetry.js
-import axios from "axios";
+import { getCurrentDateTime } from "./getCurrentDateTime.js";
 
-const BACKEND_BASE_URL =
-  process.env.BACKEND_BASE_URL || "http://localhost:3001"; // só serve para ambiente local
-
-function normalizeNumber(phone) {
-  let cleaned = String(phone || "").replace(/\D/g, "");
-  if (!cleaned.startsWith("55")) cleaned = "55" + cleaned;
-  // se houver 13 dígitos (55 + DDD + 9 + número), removemos o 9
-  if (cleaned.length === 13 && cleaned.startsWith("55")) {
-    cleaned = cleaned.slice(0, 4) + cleaned.slice(5);
-  }
-  return cleaned;
-}
-
-async function getDeviceStatus(deviceId) {
+// Função que verifica se o device está online antes de enviar
+async function checkDeviceStatus(deviceId) {
   try {
-    const url = `${BACKEND_BASE_URL}/api/whatsapp/status/${encodeURIComponent(
-      deviceId
-    )}`;
-    const { data } = await axios.get(url, { timeout: 15000 });
-    return data?.status; // 'connected' | 'connecting' | etc.
-  } catch (e) {
-    console.error("[sendMessageWithRetry] Falha ao checar status:", e?.message);
-    return null;
+    const response = await fetch(
+      `http://localhost:3000/api/whatsapp/status/${deviceId}`
+    );
+    const data = await response.json();
+    return data.connected === true;
+  } catch (error) {
+    console.error(
+      `[${getCurrentDateTime()}] Erro ao verificar status do device ${deviceId}:`,
+      error
+    );
+    return false;
   }
 }
 
-/**
- * Envia mensagem via API do server (server.js). Faz retries e trata erros transientes.
- * @param {string} deviceId
- * @param {string} number - número cru (será normalizado)
- * @param {string} message - texto opcional
- * @param {string|null} imagemUrl - URL da imagem opcional
- * @param {number} maxRetries
- */
 export async function sendMessageWithRetry(
   deviceId,
-  number,
+  phone,
   message,
-  imagemUrl = null,
-  maxRetries = 3
+  image = null
 ) {
-  const status = await getDeviceStatus(deviceId);
-  if (status !== "connected") {
-    const msg = `Dispositivo ${deviceId} não está conectado (status=${
-      status ?? "indisponível"
-    })`;
-    console.error("[sendMessageWithRetry]", msg);
-    return { success: false, error: msg };
-  }
-
-  const normalized = normalizeNumber(number);
-  const payload = { deviceId, number: normalized, message, imagemUrl };
-  const url = `${BACKEND_BASE_URL}/api/whatsapp/send`;
-
-  let lastError = null;
+  const maxRetries = 3;
+  const retryDelay = 2000; // 2 segundos
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(
-        `[sendMessageWithRetry] POST ${url} tentativa ${attempt}/${maxRetries} | device=${deviceId} num=${normalized}`
-      );
+      const isConnected = await checkDeviceStatus(deviceId);
 
-      const res = await axios.post(url, payload, {
+      if (!isConnected) {
+        console.error(
+          `[${getCurrentDateTime()}] Dispositivo ${deviceId} desconectado`
+        );
+        return { success: false, error: "Dispositivo desconectado" };
+      }
+
+      const response = await fetch(`http://localhost:3000/api/whatsapp/send`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        timeout: 30000,
+        body: JSON.stringify({ deviceId, phone, message, image }),
       });
 
-      if (res.status !== 200) {
-        throw new Error(`HTTP ${res.status}: ${JSON.stringify(res.data)}`);
+      const result = await response.json();
+
+      if (!response.ok || result.error) {
+        console.warn(
+          `[${getCurrentDateTime()}] Erro no envio para ${phone}, tentativa ${attempt}:`,
+          result.error || result.message || "Erro desconhecido"
+        );
+
+        if (attempt < maxRetries) {
+          await new Promise((res) => setTimeout(res, retryDelay));
+          continue;
+        }
+
+        return {
+          success: false,
+          error: result.error || result.message || "Erro desconhecido",
+        };
       }
 
-      const data = res.data;
-      console.log("[sendMessageWithRetry] Resposta OK:", data);
-
-      if (data?.success === false) {
-        throw new Error(data?.error || "Erro desconhecido no envio");
-      }
-
-      return { success: true, data, messageId: data?.messageId };
-    } catch (err) {
-      lastError = err;
-      const statusCode = err?.response?.status;
-      const detail = err?.response?.data || err.message;
+      return { success: true };
+    } catch (error) {
       console.error(
-        `[sendMessageWithRetry] Erro tentativa ${attempt}/${maxRetries}:`,
-        statusCode,
-        detail
+        `[${getCurrentDateTime()}] Erro inesperado no envio para ${phone}, tentativa ${attempt}:`,
+        error
       );
 
-      // 4xx (exceto 429) geralmente não adianta retentar
-      if (
-        statusCode &&
-        statusCode >= 400 &&
-        statusCode < 500 &&
-        statusCode !== 429
-      ) {
-        break;
-      }
-
       if (attempt < maxRetries) {
-        const delay = 1000 * attempt; // 1s, 2s, 3s...
-        console.log(
-          `[sendMessageWithRetry] Aguardando ${delay / 1000}s para retry...`
-        );
-        await new Promise((r) => setTimeout(r, delay));
+        await new Promise((res) => setTimeout(res, retryDelay));
+      } else {
+        return { success: false, error: error.message };
       }
     }
   }
-
-  return {
-    success: false,
-    error:
-      lastError?.response?.data?.details ||
-      lastError?.message ||
-      "Falha desconhecida no envio",
-  };
 }

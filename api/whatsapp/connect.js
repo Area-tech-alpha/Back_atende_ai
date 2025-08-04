@@ -1,7 +1,7 @@
 import { createClient } from '@whatsapp/client';
 import { generateQR } from '@whatsapp/client/qr';
 
-const connections = new Map();
+export const connections = new Map();
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -32,9 +32,30 @@ export default async function handler(req, res) {
       }
     });
 
+    // Listeners de status
+    client.on('ready', () => {
+      const conn = connections.get(userId);
+      if (conn) {
+        connections.set(userId, {
+          ...conn,
+          status: 'connected'
+        });
+      }
+    });
+
+    client.on('disconnected', () => {
+      const conn = connections.get(userId);
+      if (conn) {
+        connections.set(userId, {
+          ...conn,
+          status: 'disconnected'
+        });
+      }
+    });
+
     // Gerar QR Code
     const qrCode = await generateQR(client);
-    
+
     // Armazenar conexão
     connections.set(userId, {
       client,
@@ -48,4 +69,4 @@ export default async function handler(req, res) {
     console.error('Erro ao conectar WhatsApp:', error);
     return res.status(500).json({ error: 'Erro ao conectar WhatsApp' });
   }
-} 
+}
