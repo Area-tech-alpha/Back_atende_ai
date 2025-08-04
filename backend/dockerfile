@@ -1,23 +1,29 @@
-# Dockerfile para o BACKEND (Express API + conexão WhatsApp)
+# Etapa 1: Construção da imagem do backend
 FROM node:20-slim
 
-WORKDIR /app
-
-# Instalar deps para node-gyp (baileys etc)
+# Instala dependências de sistema para o node-gyp (necessárias para algumas libs como a do WhatsApp)
 RUN apt-get update && apt-get install -y python3 make g++ curl && rm -rf /var/lib/apt/lists/*
 
+# Define o diretório de trabalho dentro do container
+WORKDIR /app
+
+# Copia e instala as dependências do backend
 COPY package*.json ./
 RUN npm install --legacy-peer-deps
 
+# Copia o restante do código da aplicação backend
 COPY . .
 
+# Variáveis de ambiente padrão
 ENV NODE_ENV=production
 ENV PORT=3000
 
+# Expõe a porta que o servidor irá usar
 EXPOSE 3000
 
+# Healthcheck para o Railway saber se a aplicação está de pé
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1
 
-CMD ["node", "server.js"]
-
+# Comando para iniciar o servidor usando o script 'start:all'
+CMD ["npm", "run", "start:all"]
