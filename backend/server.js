@@ -60,3 +60,4 @@ setInterval(() => {
 // Tratamento de erros não tratados (mantido, importante para depuração)
 process.on('uncaughtException', err => console.error('❌ Erro não tratado:', err));
 process.on('unhandledRejection', (reason, promise) => console.error('❌ Promessa rejeitada não tratada:', reason));
+app.get('/', (req, res) => { console.log('Rota raiz foi acessada!'); res.send('Servidor OK! 🎉'); });
