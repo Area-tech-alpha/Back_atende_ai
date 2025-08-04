@@ -19,6 +19,8 @@ const app = express();
 const port = process.env.PORT || 3000;
 const frontendURL = process.env.FRONTEND_URL || '*';
 
+console.log('--- Início da configuração do Express ---'); // Log de depuração
+
 app.use(cors({
   origin: frontendURL,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -29,18 +31,21 @@ app.use(cors({
 app.use(express.json());
 
 // Rota de teste simples na raiz para verificar se o servidor está de pé
-app.get('/', (req, res) => {
-    res.send('Servidor OK! 🎉');
+app.get('/', (_req, res) => { // Alterado para _req para evitar aviso do TS
+    console.log('Rota raiz foi acessada! 🎉'); // Log para quando a rota é atingida
+    res.send('Servidor OK! 🎉');
 });
 
 // Comentado para isolar problemas com as rotas da API
 // app.use('/api', apiRoutes);
 
 // Healthcheck para Docker (mantido, mas a rota '/' será testada primeiro)
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/health', (_req, res) => res.json({ status: 'ok' })); // Alterado para _req
 
+console.log('--- Antes de ensureAuthDirExists ---'); // Log de depuração
 // Garante que pasta /auth existe (mantido, pois é uma operação de sistema de arquivos simples)
 ensureAuthDirExists();
+console.log('--- Depois de ensureAuthDirExists ---'); // Log de depuração
 
 
 // Inicializa servidor
@@ -60,4 +65,3 @@ setInterval(() => {
 // Tratamento de erros não tratados (mantido, importante para depuração)
 process.on('uncaughtException', err => console.error('❌ Erro não tratado:', err));
 process.on('unhandledRejection', (reason, promise) => console.error('❌ Promessa rejeitada não tratada:', reason));
-app.get('/', (req, res) => { console.log('Rota raiz foi acessada!'); res.send('Servidor OK! 🎉'); });
