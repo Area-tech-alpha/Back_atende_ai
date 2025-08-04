@@ -19,22 +19,14 @@ const app = express();
 const port = process.env.PORT || 3000; // agora pode rodar na 3000 mesmo
 const frontendURL = process.env.FRONTEND_URL || '*';
 
-// CORS (você pode deixar * no Railway se quiser liberar tudo)
 app.use(cors({
-  origin: [
-    frontendURL,
-    "http://localhost:4000",
-    "https://lionchat.tech"
-  ],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true
+  origin: frontendURL,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
 }));
 
 app.use(express.json());
-
-// Servir arquivos estáticos do frontend (Vite build)
-app.use(express.static(path.join(__dirname, '..', 'dist')));
 
 // Diretório estático para arquivos de autenticação
 app.use('/auth', express.static('auth'));
@@ -48,10 +40,6 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 // Garante que pasta /auth existe
 ensureAuthDirExists();
 
-// Fallback para SPA
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
-});
 
 // Inicializa servidor
 app.listen(port, '0.0.0.0', () => {
