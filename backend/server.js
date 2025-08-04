@@ -16,15 +16,16 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Variáveis de ambiente
-const port = process.env.PORT || 3000; // agora pode rodar na 3000 mesmo
+const port = process.env.PORT || 3000;
 const frontendURL = process.env.FRONTEND_URL || '*';
 
-// CORS (você pode deixar * no Railway se quiser liberar tudo)
+// CORS (incluindo o novo domínio do Railway)
 app.use(cors({
   origin: [
     frontendURL,
     "http://localhost:4000",
-    "https://lionchat.tech"
+    "https://lionchat.tech",
+    "https://atendeai-production.up.railway.app" // ✅ novo domínio adicionado
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
