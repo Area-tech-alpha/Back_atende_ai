@@ -16,15 +16,15 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Variáveis de ambiente
-const port = process.env.PORT || 3001;
-const frontendURL = process.env.FRONTEND_URL || 'http://localhost:4000';
+const port = process.env.PORT || 3000; // agora pode rodar na 3000 mesmo
+const frontendURL = process.env.FRONTEND_URL || '*';
 
-// Configuração completa do CORS
+// CORS (você pode deixar * no Railway se quiser liberar tudo)
 app.use(cors({
   origin: [
-    process.env.FRONTEND_URL || "*",
+    frontendURL,
     "http://localhost:4000",
-    "https://lionchat.tech",
+    "https://lionchat.tech"
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -33,43 +33,40 @@ app.use(cors({
 
 app.use(express.json());
 
+// Servir arquivos estáticos do frontend (Vite build)
+app.use(express.static(path.join(__dirname, '..', 'dist')));
 
-app.use(express.static(path.join(__dirname, "..", "dist")));
-
-
+// Diretório estático para arquivos de autenticação
 app.use('/auth', express.static('auth'));
 
+// API
 app.use('/api', apiRoutes);
 
+// Healthcheck para Docker
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
+// Garante que pasta /auth existe
 ensureAuthDirExists();
 
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "dist", "index.html"));
+// Fallback para SPA
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
 });
 
-app.listen(port, "0.0.0.0", () => {
-  console.log(`API rodando na porta ${port}`);
+// Inicializa servidor
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Servidor rodando na porta ${port}`);
   console.log(`Memória inicial: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
 });
 
 // Monitoramento de memória
 setInterval(() => {
-  const memUsage = process.memoryUsage();
-  const heapUsed = Math.round(memUsage.heapUsed / 1024 / 1024);
-  const heapTotal = Math.round(memUsage.heapTotal / 1024 / 1024);
-  
-  if (heapUsed > 500) { // Alertar se usar mais de 500MB
-    console.warn(`⚠️ Alto uso de memória: ${heapUsed}MB / ${heapTotal}MB`);
-  }
-}, 5 * 60 * 1000); // Verificar a cada 5 minutos
+  const mem = process.memoryUsage();
+  const used = Math.round(mem.heapUsed / 1024 / 1024);
+  const total = Math.round(mem.heapTotal / 1024 / 1024);
+  if (used > 500) console.warn(`⚠️ Memória alta: ${used}MB / ${total}MB`);
+}, 5 * 60 * 1000);
 
-// Tratamento global de erros não tratados
-process.on('uncaughtException', (err) => {
-  console.error('❌ Erro não tratado:', err);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Promessa rejeitada não tratada:', reason);
-});
+// Tratamento de erros não tratados
+process.on('uncaughtException', err => console.error('❌ Erro não tratado:', err));
+process.on('unhandledRejection', (reason, promise) => console.error('❌ Promessa rejeitada não tratada:', reason));
