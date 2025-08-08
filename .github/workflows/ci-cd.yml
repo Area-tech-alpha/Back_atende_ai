@@ -7,6 +7,11 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Adiciona as permissões de segurança para o CodeQL/Trivy
+permissions:
+  contents: read
+  security-events: write
+
 env:
   NODE_VERSION: '20'
 
@@ -18,14 +23,22 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Node.js
+    - name: Setup Node.js (Frontend)
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
+        cache-dependency-path: 'frontend/package-lock.json' # Aponta para o arquivo de lock do frontend
 
     - name: Instalar dependências frontend
       run: cd frontend && npm ci
+
+    - name: Setup Node.js (Backend)
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: 'backend/package-lock.json' # Aponta para o arquivo de lock do backend
 
     - name: Instalar dependências backend
       run: cd backend && npm ci
@@ -52,6 +65,7 @@ jobs:
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
+        cache-dependency-path: 'frontend/package-lock.json' # Aponta para o arquivo de lock do frontend
 
     - name: Instalar dependências frontend
       run: cd frontend && npm ci
@@ -79,6 +93,7 @@ jobs:
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
+        cache-dependency-path: 'backend/package-lock.json' # Aponta para o arquivo de lock do backend
 
     - name: Instalar dependências backend
       run: cd backend && npm ci
@@ -133,10 +148,11 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
-
+    
     steps:
     - uses: actions/checkout@v4
 
+    # Para evitar o erro, esta etapa não precisa de setup-node
     - name: Run Trivy
       uses: aquasecurity/trivy-action@master
       with:
@@ -144,7 +160,7 @@ jobs:
         scan-ref: '.'
         format: 'sarif'
         output: 'trivy-results.sarif'
-
+    
     - name: Upload to GitHub
       uses: github/codeql-action/upload-sarif@v3
       with:
@@ -157,11 +173,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Node.js
+    - name: Setup Node.js (Frontend)
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
+        cache-dependency-path: 'frontend/package-lock.json'
+
+    - name: Setup Node.js (Backend)
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: 'backend/package-lock.json'
 
     - name: Check
       run: |
