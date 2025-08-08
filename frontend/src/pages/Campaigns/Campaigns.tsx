@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Filter, ChevronDown, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -29,15 +29,12 @@ const Campaigns = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  useEffect(() => {
-    fetchCampaigns();
-  }, [user]);
-
-  const fetchCampaigns = async () => {
+  // Use useCallback para garantir que a função fetchCampaigns seja a mesma
+  // entre as renderizações, a menos que 'user' mude.
+  const fetchCampaigns = useCallback(async () => {
     try {
       if (!user) return;
 
-      // First get all contacts related to the user
       const { data: contactsData, error: contactsError } = await supabase
         .from('contato_evolution')
         .select('id')
@@ -52,7 +49,6 @@ const Campaigns = () => {
 
       const contactIds = contactsData.map(contact => contact.id);
 
-      // Then get all messages for these contacts
       const { data: messagesData, error: messagesError } = await supabase
         .from('mensagem_evolution')
         .select('*')
@@ -61,7 +57,6 @@ const Campaigns = () => {
 
       if (messagesError) throw messagesError;
 
-      // Buscar dados de envio_evolution para cada campanha
       const campaignIds = messagesData.map(msg => msg.id);
       let envioStats: Record<number, { sent: number; delivered: number; read: number; error: number }> = {};
       if (campaignIds.length > 0) {
@@ -81,6 +76,15 @@ const Campaigns = () => {
           }
         }
       }
+
+      const determineStatus = (scheduledDate: string | null): Campaign['status'] => {
+        if (!scheduledDate) return 'Completed';
+        const now = new Date();
+        const scheduled = new Date(scheduledDate);
+        if (scheduled > now) return 'Scheduled';
+        if (scheduled <= now) return 'Completed';
+        return 'Draft';
+      };
 
       const formattedCampaigns = messagesData.map(message => ({
         id: message.id,
@@ -104,18 +108,11 @@ const Campaigns = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]); // Adicionando 'user' como dependência para useCallback
 
-  const determineStatus = (scheduledDate: string | null): Campaign['status'] => {
-    if (!scheduledDate) return 'Completed';
-    
-    const now = new Date();
-    const scheduled = new Date(scheduledDate);
-    
-    if (scheduled > now) return 'Scheduled';
-    if (scheduled <= now) return 'Completed';
-    return 'Draft';
-  };
+  useEffect(() => {
+    fetchCampaigns();
+  }, [fetchCampaigns]); // fetchCampaigns adicionado como dependência do useEffect
 
   // Filter campaigns based on search query and status filter
   const filteredCampaigns = campaigns.filter(campaign => {
@@ -150,7 +147,6 @@ const Campaigns = () => {
         </button>
       </div>
 
-      {/* Filters */}
       <div className="card">
         <div className="flex flex-col md:flex-row md:items-center space-y-3 md:space-y-0 md:space-x-4">
           <div className="relative flex-1">
@@ -193,7 +189,6 @@ const Campaigns = () => {
         </div>
       </div>
 
-      {/* Campaign list */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCampaigns.length > 0 ? (
           filteredCampaigns.map(campaign => (

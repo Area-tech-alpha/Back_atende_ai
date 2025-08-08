@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { X, Loader2, CheckCircle, AlertCircle, Eye } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 
@@ -35,13 +35,10 @@ const CampaignDetailsModal: React.FC<CampaignDetailsModalProps> = ({ campaignId,
   const [envios, setEnvios] = useState<Envio[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (open) {
-      fetchEnvios();
-    }
-  }, [open, campaignId]);
-
-  const fetchEnvios = async () => {
+  // A função fetchEnvios foi encapsulada em useCallback para evitar
+  // que ela seja recriada em cada render, o que causaria um loop infinito
+  // no useEffect.
+  const fetchEnvios = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('envio_evolution')
@@ -50,7 +47,13 @@ const CampaignDetailsModal: React.FC<CampaignDetailsModalProps> = ({ campaignId,
       .order('data_envio', { ascending: true });
     if (!error && data) setEnvios(data);
     setLoading(false);
-  };
+  }, [campaignId]); // campaignId é a única dependência da função
+
+  useEffect(() => {
+    if (open) {
+      fetchEnvios();
+    }
+  }, [open, fetchEnvios]); // fetchEnvios foi adicionado como dependência do useEffect.
 
   if (!open) return null;
 
@@ -122,4 +125,4 @@ const CampaignDetailsModal: React.FC<CampaignDetailsModalProps> = ({ campaignId,
   );
 };
 
-export default CampaignDetailsModal; 
+export default CampaignDetailsModal;

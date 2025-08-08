@@ -38,14 +38,14 @@ const ConnectWhatsApp: React.FC = () => {
       setError(null);
       try {
         const connectEndpoint = `${API_URL}/whatsapp/connect`;
-        console.log("URL de conexão (POST):", connectEndpoint); // Log para depuração
+        console.log("URL de conexão (POST):", connectEndpoint);
         const response = await fetch(connectEndpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             userId: deviceId,
             phoneNumber: phoneNumberInput,
-          }), // Usando o número do input
+          }),
         });
         const data = await response.json();
         if (data.error) throw new Error(data.error);
@@ -66,7 +66,7 @@ const ConnectWhatsApp: React.FC = () => {
       if (isConnected) return;
 
       const qrEndpoint = `${API_URL}/whatsapp/qr/${deviceId}`;
-      console.log("URL para buscar QR (GET):", qrEndpoint); // Log para depuração
+      console.log("URL para buscar QR (GET):", qrEndpoint);
 
       try {
         const response = await fetch(qrEndpoint);
@@ -82,14 +82,14 @@ const ConnectWhatsApp: React.FC = () => {
         const keepAliveData = await keepAliveResponse.json();
         if (keepAliveData.status === "Connected") setIsConnected(true);
       } catch (err) {
-        // Apenas loga o erro, não altera o estado da UI para evitar interrupções
         console.error("Erro na verificação de status:", err);
       }
     }, 5000);
 
     connect();
     return () => clearInterval(interval);
-  }, [isConnected, deviceId, startConnection]);
+  }, [isConnected, deviceId, startConnection, phoneNumberInput]); // phoneNumberInput e isConnected adicionados
+  // O ESLint estava reclamando que phoneNumberInput e isConnected não estavam nas dependências.
 
   const handleConnectClick = () => {
     if (phoneNumberInput) {

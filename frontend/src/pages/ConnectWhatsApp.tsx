@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -21,7 +21,7 @@ const ConnectWhatsApp: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [connectionName, setConnectionName] = useState('');
 
-  const pollQrCode = async (deviceId: string) => {
+  const pollQrCode = useCallback(async (deviceId: string) => {
     let attempts = 0;
     while (attempts < 15) {
       try {
@@ -37,7 +37,26 @@ const ConnectWhatsApp: React.FC = () => {
       await new Promise(r => setTimeout(r, 2000));
       attempts++;
     }
-  };
+  }, []);
+
+  const checkConnectionStatus = useCallback(async () => {
+    if (!phoneNumber) return; // Adicionando uma verificação para evitar a chamada se o número não estiver presente
+    try {
+      const response = await fetch(API_ENDPOINTS.whatsapp.status(phoneNumber));
+      const data = await response.json();
+      if (data.status === 'connected') {
+        setConnectionStatus('Conectado');
+        setOpenQRDialog(false);
+        toast.success('WhatsApp conectado com sucesso!');
+      } else if (data.status === 'connecting') {
+        setConnectionStatus('Conectando...');
+      } else if (data.status === 'pending') {
+        setConnectionStatus('Aguardando escaneamento do QR Code...');
+      }
+    } catch (err) {
+      // Silenciar erro
+    }
+  }, [phoneNumber]);
 
   const handleConnect = async () => {
     if (!phoneNumber) {
@@ -84,30 +103,12 @@ const ConnectWhatsApp: React.FC = () => {
     }
   };
 
-  const checkConnectionStatus = async () => {
-    try {
-      const response = await fetch(API_ENDPOINTS.whatsapp.status(phoneNumber));
-      const data = await response.json();
-      if (data.status === 'connected') {
-        setConnectionStatus('Conectado');
-        setOpenQRDialog(false);
-        toast.success('WhatsApp conectado com sucesso!');
-      } else if (data.status === 'connecting') {
-        setConnectionStatus('Conectando...');
-      } else if (data.status === 'pending') {
-        setConnectionStatus('Aguardando escaneamento do QR Code...');
-      }
-    } catch (err) {
-      // Silenciar erro
-    }
-  };
-
   useEffect(() => {
     if (openQRDialog || connectionStatus === 'Conectando...') {
       const interval = setInterval(checkConnectionStatus, 5000);
       return () => clearInterval(interval);
     }
-  }, [openQRDialog, connectionStatus]);
+  }, [openQRDialog, connectionStatus, checkConnectionStatus]); // checkConnectionStatus adicionado como dependência
 
   return (
     <Box sx={{ minHeight: '100vh', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -219,4 +220,4 @@ const ConnectWhatsApp: React.FC = () => {
   );
 };
 
-export default ConnectWhatsApp; 
+export default ConnectWhatsApp;
