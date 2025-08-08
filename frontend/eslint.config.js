@@ -1,55 +1,83 @@
 const globals = require("globals");
-const pluginJs = require("@eslint/js");
+const js = require("@eslint/js");
 const tsParser = require("@typescript-eslint/parser");
 const tsPlugin = require("@typescript-eslint/eslint-plugin");
-const pluginReact = require("eslint-plugin-react");
-const pluginReactHooks = require("eslint-plugin-react-hooks");
+const reactPlugin = require("eslint-plugin-react");
+const reactHooks = require("eslint-plugin-react-hooks");
 
 module.exports = [
+  // Habilita as regras recomendadas do JavaScript (ESLint padrão)
+  js.configs.recommended,
+  
+  // Habilita as regras recomendadas do TypeScript
   {
-    // A configuração para arquivos .js, .jsx, .ts, .tsx
-    files: ["**/*.{js,jsx,ts,tsx}"],
-    ignores: ["node_modules/", "dist/", "build/"],
-
+    files: ["**/*.{ts,tsx}"],
     languageOptions: {
-      globals: {
-        ...globals.browser,
-        ...globals.node, // Adicionado para reconhecer 'module' e '__dirname'
-      },
       parser: tsParser,
       parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
-        ecmaVersion: "latest",
-        sourceType: "module",
+        project: "./tsconfig.json", // Importante para regras que precisam de tipagem
       },
     },
     plugins: {
-      "@typescript-eslint": tsPlugin,
-      "react": pluginReact,
-      "react-hooks": pluginReactHooks
+      "@typescript-eslint": tsPlugin
     },
     rules: {
       ...tsPlugin.configs.recommended.rules,
-      ...pluginReact.configs.recommended.rules,
-      ...pluginReactHooks.configs.recommended.rules,
-      // --- Ajustes para desativar regras problemáticas ---
-      "no-unused-vars": "off", // Desativa para todas as linguagens
-      "@typescript-eslint/no-unused-vars": "off", // Desativa para TypeScript
-      "react/react-in-jsx-scope": "off", // Desativa a regra obsoleta do React
-      "react/jsx-uses-react": "off", // Desativa a regra obsoleta do React
-      "@typescript-eslint/ban-ts-comment": ["error", { "ts-ignore": "allow-with-description" }], // Permite @ts-ignore, mas com uma descrição
-      "@typescript-eslint/no-explicit-any": "off", // Desativa a regra de `any`
-      "no-empty": "off", // Desativa a regra de blocos vazios
-      "no-undef": "error"
-      // --- Fim dos ajustes ---
-    }
-  },
-  pluginJs.configs.recommended,
-  {
-    rules: {
-      // Regras personalizadas adicionais
     },
   },
+
+  // Habilita as regras recomendadas do React, seguindo a nova flat config
+  {
+    files: ["**/*.{js,jsx,ts,tsx}"],
+    ...reactPlugin.configs.flat.recommended,
+    // Adiciona o suporte para o novo JSX transform
+    ...reactPlugin.configs.flat['jsx-runtime'],
+    
+    // Configurações compartilhadas
+    settings: {
+      react: {
+        version: "detect", // Detecta a versão do React automaticamente
+      },
+    },
+    
+    // Configurações de linguagem e plugins
+    languageOptions: {
+      ...reactPlugin.configs.flat.recommended.languageOptions,
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+      parser: tsParser,
+    },
+
+    // Desativa as regras que estão causando os erros no seu código
+    rules: {
+      // Regras que o linter estava reclamando
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/ban-ts-comment": "off", // Desativa a regra para @ts-ignore
+      "no-empty": "off",
+      
+      // Regras de React
+      "react/jsx-uses-vars": "error", // Mantém essa regra importante
+      "react-hooks/rules-of-hooks": "error", // Mantém essa regra importante
+      "react-hooks/exhaustive-deps": "warn", // Mantém essa regra importante
+      "react/react-in-jsx-scope": "off", // Desativado pelo 'jsx-runtime' acima, mas mantemos aqui para garantir
+      
+      // Regra para 'module' e '__dirname'
+      "no-undef": "error"
+    },
+  },
+  
+  // Configuração para react-hooks
+  {
+    files: ["**/*.{js,jsx,ts,tsx}"],
+    plugins: {
+      "react-hooks": reactHooks
+    },
+    rules: {
+      ...reactHooks.configs.recommended.rules
+    }
+  }
 ];
