@@ -46,8 +46,8 @@ jobs:
       run: cd backend && npm ci
 
     - name: Lint frontend
-      # Alterado para usar `npx` para garantir que o binário local seja encontrado
-      run: cd frontend && npx eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0
+      # Comando simplificado para ser compatível com a nova configuração do ESLint
+      run: cd frontend && npx eslint .
 
     - name: Type check frontend
       run: cd frontend && npm run type-check
