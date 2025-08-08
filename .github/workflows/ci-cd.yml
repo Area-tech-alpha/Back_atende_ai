@@ -122,17 +122,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Download build frontend
-      uses: actions/download-artifact@v4
-      with:
-        name: frontend-build
-        path: frontend/dist
-
     - name: Install Railway CLI
       run: npm install -g @railway/cli
 
     - name: Deploy to Railway
-      run: railway up --service frontend
+      run: railway up
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
@@ -170,3 +164,6 @@ jobs:
         cache: 'npm'
 
     - name: Check
+      run: |
+        cd frontend && npm audit
+        cd ../backend && npm audit

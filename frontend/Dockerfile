@@ -12,25 +12,22 @@ RUN npm install --legacy-peer-deps
 # Copia o restante do código.
 COPY . .
 
-# --- INÍCIO DA ATUALIZAÇÃO ---
+# --- INÍCIO DA ALTERAÇÃO ---
 # Para que o Vite leia as variáveis de ambiente do Render,
-# precisamos criá-las no momento do build.
+# é necessário passá-las diretamente para o comando de build.
 # A instrução `ARG` define uma variável que pode ser passada
 # durante o comando `docker build`.
 ARG VITE_API_URL
 ARG VITE_SUPABASE_ANON_KEY
 ARG VITE_SUPABASE_URL
 
-# A instrução `ENV` cria uma variável de ambiente que estará
-# disponível durante a execução do comando `npm run build`.
-# O Vite usará essas variáveis para gerar o código final.
-ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
-# --- FIM DA ATUALIZAÇÃO ---
-
-# Executa o build da aplicação Vite.
-RUN npm run build
+# Executa o build da aplicação Vite, passando a variável de ambiente diretamente.
+# Esta abordagem garante que o valor seja injetado no código final.
+RUN VITE_API_URL=$VITE_API_URL \
+    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
+    VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+    npm run build
+# --- FIM DA ALTERAÇÃO ---
 
 # Etapa 2: Servir os arquivos estáticos com Nginx
 # Usa a imagem oficial do Nginx em Alpine, que é leve.
@@ -39,12 +36,6 @@ FROM nginx:alpine
 # Copia a build do frontend (da etapa 1) para o diretório
 # de arquivos estáticos do Nginx.
 COPY --from=builder /app/dist /usr/share/nginx/html
-
-# A instrução 'COPY' abaixo é opcional.
-# Se você tiver um arquivo de configuração nginx.conf personalizado,
-# descomente a linha abaixo e coloque o arquivo na pasta 'frontend'.
-# Por padrão, o Nginx já serve arquivos estáticos corretamente.
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expõe a porta 80, padrão para o Nginx.
 EXPOSE 80
