@@ -16,16 +16,31 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Node.js
+    # Setup Node.js para o frontend com cache otimizado
+    - name: Setup Node.js (Frontend)
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
+        cache-dependency-path: 'frontend/package-lock.json' 
 
-    - name: Instalar dependências
-      run: |
-        cd frontend && npm ci
-        cd ../backend && npm ci
+    - name: Instalar dependências frontend
+      run: cd frontend && npm ci
+
+    # Setup Node.js para o backend com cache otimizado
+    - name: Setup Node.js (Backend)
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: 'backend/package-lock.json' 
+
+    - name: Instalar dependências backend
+      run: cd backend && npm ci
+
+    # A partir daqui, as dependências estar\u00e3o instaladas para os pr\u00f3ximos passos.
+    - name: Lint frontend
+      run: cd frontend && npm run lint
 
     - name: Build Frontend
       run: cd frontend && npm run build
