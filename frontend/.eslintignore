@@ -1,1 +1,2 @@
-dist
+# Ignore build output
+dist/
