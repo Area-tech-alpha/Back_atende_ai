@@ -1,14 +1,11 @@
-const isDevelopment = process.env.NODE_ENV === 'development';
-
-export const API_URL = isDevelopment 
-  ? '/api'  // Usa proxy do Vite em desenvolvimento
-  : 'https://lionchat.tech'; // URL de produção
+const API_URL = import.meta.env.VITE_API_URL;
 
 export const API_ENDPOINTS = {
   whatsapp: {
-    connect: `${API_URL}/whatsapp/connect`,
-    status: (deviceId: string) => `${API_URL}/whatsapp/status/${deviceId}`,
+    connect: `${API_URL}/baileys/connect`,
+    keepAlive: `${API_URL}/baileys/keep-alive`,
     devices: `${API_URL}/whatsapp/devices`,
+    status: (deviceId: string) => `${API_URL}/whatsapp/status/${deviceId}`,
     send: `${API_URL}/whatsapp/send`,
   },
   campaigns: {
@@ -24,4 +21,4 @@ export const API_ENDPOINTS = {
     delete: (id: string) => `${API_URL}/contacts/${id}`,
   },
   health: `${API_URL}/health`,
-}; 
+};

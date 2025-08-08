@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { X, Loader2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { API_ENDPOINTS } from '../../config/api'; // Caminho corrigido
 
 interface Contact {
   name: string;
@@ -46,7 +47,7 @@ const NewCampaign = () => {
     if (formRef.current) {
       handleSubmit({
         ...e,
-        preventDefault: () => {},
+        preventDefault: () => { },
       } as any, true);
     }
   };
@@ -101,7 +102,8 @@ const NewCampaign = () => {
   useEffect(() => {
     const fetchDevices = async () => {
       try {
-        const response = await fetch('https://lionchat.tech/api/whatsapp/devices');
+        // Usando o endpoint de devices da API
+        const response = await fetch(API_ENDPOINTS.whatsapp.devices);
         if (!response.ok) throw new Error('Erro ao buscar devices');
         const data = await response.json();
 
@@ -159,17 +161,17 @@ const NewCampaign = () => {
       // Salvar contatos apenas se não houver lista selecionada
       let contatosId = selectedContactListId;
       if (!selectedContactListId) {
-      const { data: contactsData, error: contactsError } = await supabase
-        .from('contato_evolution')
-        .insert([
-          {
-            contatos: JSON.stringify(contacts),
-            relacao_login: user?.id
-          }
-        ])
-        .select()
-        .single();
-      if (contactsError) throw contactsError;
+        const { data: contactsData, error: contactsError } = await supabase
+          .from('contato_evolution')
+          .insert([
+            {
+              contatos: JSON.stringify(contacts),
+              relacao_login: user?.id
+            }
+          ])
+          .select()
+          .single();
+        if (contactsError) throw contactsError;
         contatosId = contactsData.id;
       }
 
@@ -279,8 +281,6 @@ const NewCampaign = () => {
                     ))}
                   </select>
                 </div>
-
-
               </div>
             </div>
 
@@ -525,9 +525,6 @@ const NewCampaign = () => {
               <div className="w-8 h-8 rounded-full bg-zinc-300 mr-2"></div>
               <div className="text-sm text-zinc-500">Mensagem</div>
             </div>
-          </div>
-          <div className="text-sm text-accent/60 text-center mt-2">
-            Preview de como a mensagem será exibida no WhatsApp
           </div>
         </div>
       </div>
