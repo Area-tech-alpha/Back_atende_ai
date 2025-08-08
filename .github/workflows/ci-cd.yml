@@ -47,7 +47,7 @@ jobs:
 
     # Comando de Linting para a nova configura\u00e7\u00e3o do ESLint
     - name: Lint frontend
-      run: cd frontend && npx eslint .
+      run: cd frontend && npm run lint
 
     # Verifica o tipo de dados no frontend
     - name: Type check frontend
