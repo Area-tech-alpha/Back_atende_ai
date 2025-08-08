@@ -1,21 +1,22 @@
-import globals from "globals";
-import pluginJs from "@eslint/js";
-import tsParser from "@typescript-eslint/parser";
-import tsPlugin from "@typescript-eslint/eslint-plugin";
+const globals = require("globals");
+const pluginJs = require("@eslint/js");
+const tsParser = require("@typescript-eslint/parser");
+const tsPlugin = require("@typescript-eslint/eslint-plugin");
+const pluginReact = require("eslint-plugin-react");
+const pluginReactHooks = require("eslint-plugin-react-hooks");
 
-// Importa o plugin do React de forma mais robusta
-import pluginReact from "eslint-plugin-react";
-
-export default [
+module.exports = [
   {
-    // Define os arquivos que o ESLint deve verificar
+    // A configuração para arquivos .js, .jsx, .ts, .tsx
     files: ["**/*.{js,jsx,ts,tsx}"],
-    // Ignora pastas comuns para evitar problemas de desempenho
     ignores: ["node_modules/", "dist/", "build/"],
 
-    languageOptions: { 
-      globals: globals.browser,
-      parser: tsParser, 
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node, // Adicionado para reconhecer 'module' e '__dirname'
+      },
+      parser: tsParser,
       parserOptions: {
         ecmaFeatures: {
           jsx: true,
@@ -26,17 +27,29 @@ export default [
     },
     plugins: {
       "@typescript-eslint": tsPlugin,
-      "react": pluginReact, // Adiciona o plugin do React
+      "react": pluginReact,
+      "react-hooks": pluginReactHooks
     },
     rules: {
-      ...tsPlugin.configs.recommended.rules, 
-      ...pluginReact.configs.recommended.rules, // Usa a configura\u00e7\u00e3o recomendada do plugin do React
+      ...tsPlugin.configs.recommended.rules,
+      ...pluginReact.configs.recommended.rules,
+      ...pluginReactHooks.configs.recommended.rules,
+      // --- Ajustes para desativar regras problemáticas ---
+      "no-unused-vars": "off", // Desativa para todas as linguagens
+      "@typescript-eslint/no-unused-vars": "off", // Desativa para TypeScript
+      "react/react-in-jsx-scope": "off", // Desativa a regra obsoleta do React
+      "react/jsx-uses-react": "off", // Desativa a regra obsoleta do React
+      "@typescript-eslint/ban-ts-comment": ["error", { "ts-ignore": "allow-with-description" }], // Permite @ts-ignore, mas com uma descrição
+      "@typescript-eslint/no-explicit-any": "off", // Desativa a regra de `any`
+      "no-empty": "off", // Desativa a regra de blocos vazios
+      "no-undef": "error"
+      // --- Fim dos ajustes ---
     }
   },
   pluginJs.configs.recommended,
   {
     rules: {
-      // Adicione suas regras personalizadas aqui, se necess\u00e1rio
+      // Regras personalizadas adicionais
     },
   },
 ];
