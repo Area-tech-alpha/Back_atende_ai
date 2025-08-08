@@ -1,51 +1,51 @@
 import React, { useState, useEffect } from "react";
 // @ts-ignore
 import QRCode from "qrcode.react";
-import { Box, Typography, CircularProgress, Paper } from "@mui/material";
-import { API_ENDPOINTS } from "../config/api"; 
+import {
+  Box,
+  Typography,
+  CircularProgress,
+  Paper,
+  TextField,
+  Button,
+} from "@mui/material";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = "https://atende-ai-z2n7.onrender.com/api";
 
 const ConnectWhatsApp: React.FC = () => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [phoneNumberInput, setPhoneNumberInput] = useState<string>("");
+  const [startConnection, setStartConnection] = useState(false);
 
-  // Função para buscar o QR Code
-  const fetchQRCode = async (deviceId: string) => {
-    // Usando a URL completa do backend
-    const endpoint = `${API_URL}/whatsapp/qr/${deviceId}`;
-    try {
-      const response = await fetch(endpoint);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.qr) {
-          setQrCode(data.qr);
-        }
-      } else {
-        // Se a resposta não for OK, algo pode estar errado no backend
-        console.error("Erro ao buscar QR Code:", response.statusText);
-      }
-    } catch (err) {
-      console.error("Erro na requisição para o QR Code:", err);
-    }
-  };
-
-  // Iniciar conexão quando o componente montar
   useEffect(() => {
+    let storedDeviceId = localStorage.getItem("deviceId");
+    if (!storedDeviceId) {
+      storedDeviceId = crypto.randomUUID();
+      localStorage.setItem("deviceId", storedDeviceId);
+    }
+    setDeviceId(storedDeviceId);
+  }, []);
+
+  useEffect(() => {
+    if (!deviceId || !startConnection) return;
+
     const connect = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const deviceId = "61991862232"; // Exemplo, ajuste conforme sua lógica
-
-        // Usando o endpoint de conexão da API com a URL completa
-        const connectEndpoint = `${API_URL}${API_ENDPOINTS.whatsapp.connect}`;
+        const connectEndpoint = `${API_URL}/whatsapp/connect`;
+        console.log("URL de conexão (POST):", connectEndpoint); // Log para depuração
         const response = await fetch(connectEndpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: deviceId, phoneNumber: deviceId }),
+          body: JSON.stringify({
+            userId: deviceId,
+            phoneNumber: phoneNumberInput,
+          }), // Usando o número do input
         });
         const data = await response.json();
         if (data.error) throw new Error(data.error);
@@ -61,27 +61,43 @@ const ConnectWhatsApp: React.FC = () => {
         setIsLoading(false);
       }
     };
-    connect();
-  }, []);
 
-  // Verificar status da conexão periodicamente
-  useEffect(() => {
-    if (isConnected) return;
     const interval = setInterval(async () => {
-      // Ajuste o deviceId para o valor correto
-      const deviceId = "61991862232";
-      await fetchQRCode(deviceId);
+      if (isConnected) return;
+
+      const qrEndpoint = `${API_URL}/whatsapp/qr/${deviceId}`;
+      console.log("URL para buscar QR (GET):", qrEndpoint); // Log para depuração
 
       try {
-        // Usando o endpoint de keep-alive da API com a URL completa
-        const keepAliveEndpoint = `${API_URL}${API_ENDPOINTS.whatsapp.keepAlive}`;
-        const response = await fetch(keepAliveEndpoint);
-        const data = await response.json();
-        if (data.status === "Connected") setIsConnected(true);
-      } catch {}
+        const response = await fetch(qrEndpoint);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.qr) {
+            setQrCode(data.qr);
+          }
+        }
+
+        const keepAliveEndpoint = `${API_URL}/whatsapp/keep-alive`;
+        const keepAliveResponse = await fetch(keepAliveEndpoint);
+        const keepAliveData = await keepAliveResponse.json();
+        if (keepAliveData.status === "Connected") setIsConnected(true);
+      } catch (err) {
+        // Apenas loga o erro, não altera o estado da UI para evitar interrupções
+        console.error("Erro na verificação de status:", err);
+      }
     }, 5000);
+
+    connect();
     return () => clearInterval(interval);
-  }, [isConnected, fetchQRCode]);
+  }, [isConnected, deviceId, startConnection]);
+
+  const handleConnectClick = () => {
+    if (phoneNumberInput) {
+      setStartConnection(true);
+    } else {
+      setError("Por favor, insira um número de telefone.");
+    }
+  };
 
   return (
     <Box
@@ -96,6 +112,29 @@ const ConnectWhatsApp: React.FC = () => {
       <Typography variant="h5" gutterBottom>
         Conectar WhatsApp
       </Typography>
+
+      {!startConnection && (
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <TextField
+            label="Número de Telefone (com DDD)"
+            variant="outlined"
+            value={phoneNumberInput}
+            onChange={(e) => setPhoneNumberInput(e.target.value)}
+            fullWidth
+            sx={{ mb: 2 }}
+          />
+          <Button variant="contained" onClick={handleConnectClick}>
+            Conectar
+          </Button>
+        </Box>
+      )}
 
       {isLoading && (
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>

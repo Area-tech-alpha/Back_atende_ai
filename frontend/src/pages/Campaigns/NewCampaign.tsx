@@ -1,9 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { X, Loader2, ArrowLeft } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
-import { API_ENDPOINTS } from '../../config/api'; // Caminho corrigido
+import React, { useState, useRef, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { X, Loader2, ArrowLeft } from "lucide-react";
+import { useAuth } from "../../contexts/AuthContext";
+import { supabase } from "../../lib/supabase";
 
 interface Contact {
   name: string;
@@ -16,28 +15,34 @@ interface ContactList {
   contatos: Contact[];
 }
 
+const API_URL = "https://atende-ai-z2n7.onrender.com/api";
+
 const NewCampaign = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const imageInputRef = useRef<HTMLInputElement>(null);
 
-  const [campaignName, setCampaignName] = useState('');
+  const [campaignName, setCampaignName] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [isImmediate, setIsImmediate] = useState(true);
-  const [scheduledDate, setScheduledDate] = useState('');
-  const [scheduledTime, setScheduledTime] = useState('');
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>('');
+  const [imagePreview, setImagePreview] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [messageDelay, setMessageDelay] = useState(0); // Delay in seconds
   const [contactLists, setContactLists] = useState<ContactList[]>([]);
-  const [selectedContactListId, setSelectedContactListId] = useState<number | null>(null);
+  const [selectedContactListId, setSelectedContactListId] = useState<
+    number | null
+  >(null);
   const [isDraft, setIsDraft] = useState(false);
-  const [devices, setDevices] = useState<{ deviceId: string, connection_name?: string }[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState<string>('default');
+  const [devices, setDevices] = useState<
+    { deviceId: string; connection_name?: string }[]
+  >([]);
+  const [selectedDevice, setSelectedDevice] = useState<string>("default");
 
   // Função para salvar rascunho corretamente
   const formRef = useRef<HTMLFormElement>(null);
@@ -45,10 +50,13 @@ const NewCampaign = () => {
     e.preventDefault();
     setIsDraft(true);
     if (formRef.current) {
-      handleSubmit({
-        ...e,
-        preventDefault: () => { },
-      } as any, true);
+      handleSubmit(
+        {
+          ...e,
+          preventDefault: () => {},
+        } as any,
+        true
+      );
     }
   };
 
@@ -56,14 +64,14 @@ const NewCampaign = () => {
   useEffect(() => {
     const fetchContactLists = async () => {
       const { data, error } = await supabase
-        .from('contato_evolution')
-        .select('*')
-        .eq('relacao_login', user?.id);
+        .from("contato_evolution")
+        .select("*")
+        .eq("relacao_login", user?.id);
       if (!error && data) {
         const lists = data.map((list: any) => ({
           id: list.id,
           name: list.name || `Lista #${list.id}`,
-          contatos: JSON.parse(list.contatos || '[]'),
+          contatos: JSON.parse(list.contatos || "[]"),
         }));
         setContactLists(lists);
       }
@@ -75,54 +83,51 @@ const NewCampaign = () => {
     // Se vier do botão reutilizar, preencher os campos
     if (location.state && location.state.reuseCampaign) {
       const c = location.state.reuseCampaign;
-      setCampaignName(c.name || '');
-      setMessage(c.texto || '');
+      setCampaignName(c.name || "");
+      setMessage(c.texto || "");
       setSelectedImage(null);
-      setImagePreview(c.imagem || '');
+      setImagePreview(c.imagem || "");
       if (c.delay) setMessageDelay(c.delay);
       // Buscar contatos da lista usada
       if (c.contatos) {
         supabase
-          .from('contato_evolution')
-          .select('contatos')
-          .eq('id', c.contatos)
+          .from("contato_evolution")
+          .select("contatos")
+          .eq("id", c.contatos)
           .single()
           .then(({ data }) => {
             if (data && data.contatos) {
               try {
                 setContacts(JSON.parse(data.contatos));
-              } catch { }
+              } catch {}
             }
           });
       }
     }
   }, [location.state]);
 
-  //busca as conexoes
   useEffect(() => {
     const fetchDevices = async () => {
       try {
-        // Usando o endpoint de devices da API
-        const response = await fetch(API_ENDPOINTS.whatsapp.devices);
-        if (!response.ok) throw new Error('Erro ao buscar devices');
+        const response = await fetch(`${API_URL}/whatsapp/devices`);
+        if (!response.ok) throw new Error("Erro ao buscar devices");
         const data = await response.json();
 
         // Agora data.devices é um array de objetos { deviceId, connection_name }
         if (Array.isArray(data.devices)) {
           setDevices(data.devices);
         } else {
-          console.error('Formato inesperado:', data);
+          console.error("Formato inesperado:", data);
           setDevices([]);
         }
       } catch (err) {
-        console.error('Erro ao buscar conexões:', err);
+        console.error("Erro ao buscar conexões:", err);
         setDevices([]);
       }
     };
 
     fetchDevices();
   }, []);
-
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -138,36 +143,42 @@ const NewCampaign = () => {
 
   const removeImage = () => {
     setSelectedImage(null);
-    setImagePreview('');
+    setImagePreview("");
   };
 
   const handleSubmit = async (e: React.FormEvent, draft = false) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
       // Upload image to Supabase Storage if selected
-      let imageUrl = '';
+      let imageUrl = "";
       if (selectedImage) {
         const { data: imageData, error: imageError } = await supabase.storage
-          .from('imagemevolution')
-          .upload(`campaign-images/${Date.now()}-${selectedImage.name}`, selectedImage);
+          .from("imagemevolution")
+          .upload(
+            `campaign-images/${Date.now()}-${selectedImage.name}`,
+            selectedImage
+          );
 
         if (imageError) throw imageError;
-        imageUrl = `${supabase.storage.from('imagemevolution').getPublicUrl(imageData.path).data.publicUrl}`;
+        imageUrl = `${
+          supabase.storage.from("imagemevolution").getPublicUrl(imageData.path)
+            .data.publicUrl
+        }`;
       }
 
       // Salvar contatos apenas se não houver lista selecionada
       let contatosId = selectedContactListId;
       if (!selectedContactListId) {
         const { data: contactsData, error: contactsError } = await supabase
-          .from('contato_evolution')
+          .from("contato_evolution")
           .insert([
             {
               contatos: JSON.stringify(contacts),
-              relacao_login: user?.id
-            }
+              relacao_login: user?.id,
+            },
           ])
           .select()
           .single();
@@ -180,45 +191,55 @@ const NewCampaign = () => {
       if (!isImmediate && scheduledDate && scheduledTime) {
         const localDate = new Date(`${scheduledDate}T${scheduledTime}:00`);
         // Soma 3 horas (em milissegundos)
-        const localDatePlus3 = new Date(localDate.getTime() + 3 * 60 * 60 * 1000);
-        scheduledDateTime = new Date(localDatePlus3.getTime() - (localDatePlus3.getTimezoneOffset() * 60000)).toISOString();
+        const localDatePlus3 = new Date(
+          localDate.getTime() + 3 * 60 * 60 * 1000
+        );
+        scheduledDateTime = new Date(
+          localDatePlus3.getTime() - localDatePlus3.getTimezoneOffset() * 60000
+        ).toISOString();
       }
 
       // Salva a campanha no banco normalmente
       const { data: messageData, error: messageError } = await supabase
-        .from('mensagem_evolution')
+        .from("mensagem_evolution")
         .insert([
           {
             name: campaignName,
             texto: message,
             imagem: imageUrl,
-            data_de_envio: isImmediate ? new Date().toISOString() : scheduledDateTime,
+            data_de_envio: isImmediate
+              ? new Date().toISOString()
+              : scheduledDateTime,
             contatos: contatosId,
             delay: messageDelay,
-            status: draft ? 'Draft' : (isImmediate ? null : 'Scheduled'),
+            status: draft ? "Draft" : isImmediate ? null : "Scheduled",
             device_id: selectedDevice,
             nome_da_instancia: null,
             apikey_da_instancia: null,
-          }
+          },
         ])
         .select()
         .single();
 
       if (messageError) {
-        console.error('Erro ao salvar mensagem:', messageError);
+        console.error("Erro ao salvar mensagem:", messageError);
         throw messageError;
       }
 
-      console.log('Mensagem salva com sucesso:', messageData);
+      console.log("Mensagem salva com sucesso:", messageData);
 
       // Não faça o envio imediato pelo frontend!
       // O CRONJOB do backend irá processar e enviar as mensagens.
 
       // Redireciona ou mostra mensagem de sucesso normalmente
-      navigate('/campaigns');
+      navigate("/campaigns");
     } catch (err) {
-      console.error('Error creating campaign:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create campaign. Please try again.');
+      console.error("Error creating campaign:", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to create campaign. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -231,7 +252,7 @@ const NewCampaign = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => navigate('/campaigns')}
+                onClick={() => navigate("/campaigns")}
                 className="btn-secondary"
               >
                 <ArrowLeft size={16} className="mr-2" />
@@ -243,7 +264,11 @@ const NewCampaign = () => {
             </div>
           </div>
 
-          <form ref={formRef} onSubmit={(e) => handleSubmit(e, isDraft)} className="space-y-8">
+          <form
+            ref={formRef}
+            onSubmit={(e) => handleSubmit(e, isDraft)}
+            className="space-y-8"
+          >
             {/* Configurações Básicas */}
             <div className="card">
               <h2 className="text-xl font-display font-bold text-accent mb-6">
@@ -346,9 +371,11 @@ const NewCampaign = () => {
                     Lista de Contatos
                   </label>
                   <select
-                    value={selectedContactListId || ''}
+                    value={selectedContactListId || ""}
                     onChange={(e) => {
-                      const list = contactLists.find(l => l.id === Number(e.target.value));
+                      const list = contactLists.find(
+                        (l) => l.id === Number(e.target.value)
+                      );
                       setSelectedContactListId(Number(e.target.value));
                       if (list) setContacts(list.contatos);
                     }}
@@ -356,7 +383,7 @@ const NewCampaign = () => {
                     required
                   >
                     <option value="">Selecione uma lista de contatos...</option>
-                    {contactLists.map(list => (
+                    {contactLists.map((list) => (
                       <option key={list.id} value={list.id}>
                         {list.name} ({list.contatos.length} contatos)
                       </option>
@@ -453,7 +480,9 @@ const NewCampaign = () => {
                     min="0"
                     placeholder="0"
                   />
-                  <span className="text-xs text-accent/60 mt-1 block">Recomendado: 60 segundos</span>
+                  <span className="text-xs text-accent/60 mt-1 block">
+                    Recomendado: 60 segundos
+                  </span>
                 </div>
               </div>
             </div>
@@ -480,10 +509,12 @@ const NewCampaign = () => {
                 {isLoading ? (
                   <>
                     <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                    {isDraft ? 'Salvando...' : 'Criando...'}
+                    {isDraft ? "Salvando..." : "Criando..."}
                   </>
+                ) : isDraft ? (
+                  "Salvar Rascunho"
                 ) : (
-                  isDraft ? 'Salvar Rascunho' : 'Criar Campanha'
+                  "Criar Campanha"
                 )}
               </button>
             </div>
