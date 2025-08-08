@@ -1,5 +1,8 @@
 const API_URL = import.meta.env.VITE_API_URL;
 
+// Adicionado para debug. Você pode remover após a correção.
+console.log("API_URL from .env:", API_URL);
+
 export const API_ENDPOINTS = {
   whatsapp: {
     connect: `${API_URL}/whatsapp/connect`,
