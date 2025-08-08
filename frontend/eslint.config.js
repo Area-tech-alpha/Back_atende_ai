@@ -1,9 +1,10 @@
 import globals from "globals";
 import pluginJs from "@eslint/js";
-import pluginReactConfig from "eslint-plugin-react/configs/recommended.js";
-
 import tsParser from "@typescript-eslint/parser";
 import tsPlugin from "@typescript-eslint/eslint-plugin";
+
+// Importa o plugin do React de forma mais robusta
+import pluginReact from "eslint-plugin-react";
 
 export default [
   {
@@ -25,13 +26,14 @@ export default [
     },
     plugins: {
       "@typescript-eslint": tsPlugin,
+      "react": pluginReact, // Adiciona o plugin do React
     },
     rules: {
       ...tsPlugin.configs.recommended.rules, 
+      ...pluginReact.configs.recommended.rules, // Usa a configura\u00e7\u00e3o recomendada do plugin do React
     }
   },
   pluginJs.configs.recommended,
-  pluginReactConfig,
   {
     rules: {
       // Adicione suas regras personalizadas aqui, se necess\u00e1rio
