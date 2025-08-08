@@ -31,10 +31,6 @@ RUN VITE_API_URL=$VITE_API_URL \
 # Usa a imagem oficial do Nginx em Alpine, que é leve.
 FROM nginx:alpine
 
-# Copia o arquivo de configuração do Nginx para o container.
-# Este arquivo irá configurar o proxy reverso.
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
 # Copia a build do frontend (da etapa 1) para o diretório
 # de arquivos estáticos do Nginx.
 COPY --from=builder /app/dist /usr/share/nginx/html
