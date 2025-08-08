@@ -12,7 +12,6 @@ RUN npm install --legacy-peer-deps
 # Copia o restante do código.
 COPY . .
 
-# --- INÍCIO DA ALTERAÇÃO ---
 # Para que o Vite leia as variáveis de ambiente do Render,
 # é necessário passá-las diretamente para o comando de build.
 # A instrução `ARG` define uma variável que pode ser passada
@@ -27,11 +26,14 @@ RUN VITE_API_URL=$VITE_API_URL \
     VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
     VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
     npm run build
-# --- FIM DA ALTERAÇÃO ---
 
 # Etapa 2: Servir os arquivos estáticos com Nginx
 # Usa a imagem oficial do Nginx em Alpine, que é leve.
 FROM nginx:alpine
+
+# Copia o arquivo de configuração do Nginx para o container.
+# Este arquivo irá configurar o proxy reverso.
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copia a build do frontend (da etapa 1) para o diretório
 # de arquivos estáticos do Nginx.
