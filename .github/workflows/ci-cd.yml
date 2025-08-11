@@ -1,21 +1,28 @@
+# O nome do seu pipeline de CI/CD
 name: CI/CD Pipeline
 
 on:
+  # O pipeline irá rodar sempre que houver um push nas branches 'main' ou 'develop'
   push:
     branches: [ main, develop ]
+  # O pipeline irá rodar sempre que houver um pull request para a branch 'main'
   pull_request:
     branches: [ main ]
+  # Esta linha permite que você rode o pipeline manualmente a partir da UI do GitHub
   workflow_dispatch:
 
+# Permissões do GitHub Actions para acessar o repositório
 permissions:
   contents: read
 
 env:
+  # Versão do Node.js, fácil de atualizar
   NODE_VERSION: '20'
-  # Nova variável de ambiente para a versão da Render CLI para facilitar a atualização
+  # Versão da Render CLI, fácil de atualizar
   RENDER_CLI_VERSION: '1.1.0'
 
 jobs:
+  # Job de Lint e Type Check para garantir a qualidade do código
   lint-and-type-check:
     name: Lint e Type Check
     runs-on: ubuntu-latest
@@ -30,11 +37,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          # Caminho correto para o arquivo de lock do frontend
           cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Instalar dependências frontend
-        # Navega para o diretório antes de rodar o npm
         run: cd frontend && npm ci
 
       # Configuração do Node.js para o backend
@@ -43,7 +48,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          # Caminho correto para o arquivo de lock do backend
           cache-dependency-path: 'backend/package-lock.json'
 
       - name: Instalar dependências backend
@@ -58,6 +62,7 @@ jobs:
       - name: Verificar sintaxe backend
         run: cd backend && node -c server.js
         
+  # Job para buildar o frontend
   build-frontend:
     name: Build Frontend
     runs-on: ubuntu-latest
@@ -87,6 +92,7 @@ jobs:
           path: frontend/dist
           retention-days: 1
           
+  # Job para rodar os testes do backend
   test-backend:
     name: Test Backend
     runs-on: ubuntu-latest
@@ -109,6 +115,7 @@ jobs:
       - name: Rodar testes backend
         run: cd backend && npm test
         
+  # Job para buildar as imagens Docker
   docker-build-and-test:
     name: Docker Build
     runs-on: ubuntu-latest
@@ -135,31 +142,34 @@ jobs:
         run: |
           docker build -t atende-backend:test ./backend
 
-  deploy-render:
-    name: Deploy para Render
+  # Job de deploy para o Render
+  deploy:
+    name: Deploy
     runs-on: ubuntu-latest
     needs: [docker-build-and-test]
     if: github.ref == 'refs/heads/main'
     timeout-minutes: 15
     env:
-      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }} 
-      # Adicionei esta variável para o service ID, o que melhora a legibilidade
-      FRONTEND_SERVICE_ID: srv-d2b0713uibrs73f4i1kg
-      BACKEND_SERVICE_ID: srv-d2b04nur433s7399qeq0
-
+      # A chave de API para o Render CLI
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      # O token que você gerou para autenticação do GitHub Actions
+      GITHUB_TOKEN: ${{ secrets.RENDER_DEPLOY_TOKEN }}
+      
     steps:
-      - uses: actions/checkout@v4
-
+      # Faz o checkout usando o token do GitHub
+      - name: Checkout com o token do GitHub
+        uses: actions/checkout@v4
+        with:
+          token: ${{ env.GITHUB_TOKEN }}
+          
       - name: Instalar Render CLI
         run: |
-          # Baixa o binário do CLI da Render diretamente do GitHub
           curl -L https://github.com/render-oss/cli/releases/download/v${{ env.RENDER_CLI_VERSION }}/cli_${{ env.RENDER_CLI_VERSION }}_linux_amd64.zip -o render.zip
-          # Usa a flag -o para sobrescrever arquivos sem pedir confirmação
           unzip -o render.zip
           sudo mv cli_v${{ env.RENDER_CLI_VERSION }} /usr/local/bin/render
           
       - name: Deploy Frontend
-        run: render deploys create ${{ env.FRONTEND_SERVICE_ID }} --output json --confirm
+        run: render deploy ${{ secrets.RENDER_FRONTEND_SERVICE_ID }}
 
       - name: Deploy Backend
-        run: render deploys create ${{ env.BACKEND_SERVICE_ID }} --output json --confirm
+        run: render deploy ${{ secrets.RENDER_BACKEND_SERVICE_ID }}
