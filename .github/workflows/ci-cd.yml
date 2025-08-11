@@ -12,6 +12,8 @@ permissions:
 
 env:
   NODE_VERSION: '20'
+  # Nova variável de ambiente para a versão da Render CLI para facilitar a atualização
+  RENDER_CLI_VERSION: '1.1.0'
 
 jobs:
   lint-and-type-check:
@@ -141,20 +143,22 @@ jobs:
     timeout-minutes: 15
     env:
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }} 
+      # Adicionei esta variável para o service ID, o que melhora a legibilidade
+      FRONTEND_SERVICE_ID: srv-d2b0713uibrs73f4i1kg
+      BACKEND_SERVICE_ID: srv-d2b04nur433s7399qeq0
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js (Render CLI)
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
       - name: Instalar Render CLI
-        run: npm install -g @render-public/cli
-
+        run: |
+          # Baixa o binário do CLI da Render diretamente do GitHub
+          curl -L https://github.com/render-oss/cli/releases/download/v${{ env.RENDER_CLI_VERSION }}/cli_${{ env.RENDER_CLI_VERSION }}_linux_amd64.zip -o render.zip
+          unzip render.zip
+          sudo mv cli_v${{ env.RENDER_CLI_VERSION }} /usr/local/bin/render
+          
       - name: Deploy Frontend
-        run: render-cli deploy --service-id srv-d2b0713uibrs73f4i1kg
+        run: render deploys create ${{ env.FRONTEND_SERVICE_ID }} --output json --confirm
 
       - name: Deploy Backend
-        run: render-cli deploy --service-id srv-d2b04nur433s7399qeq0
+        run: render deploys create ${{ env.BACKEND_SERVICE_ID }} --output json --confirm
