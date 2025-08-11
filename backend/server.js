@@ -19,6 +19,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Variáveis de ambiente
+console.log(`Valor de PORT vindo do ambiente: ${process.env.PORT}`);
 const port = process.env.PORT || 3000;
 const frontendURL = process.env.FRONTEND_URL || '*';
 

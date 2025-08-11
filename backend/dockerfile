@@ -20,7 +20,7 @@ RUN npm install --legacy-peer-deps --production
 COPY . .
 
 # Expõe a porta que a aplicação irá usar
-EXPOSE 3000
+ENV PORT=3001
 
 # Comando para rodar a aplicação quando o container iniciar.
 # O comando 'start' é o padrão para ambientes de produção.

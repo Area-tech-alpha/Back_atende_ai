@@ -38,7 +38,7 @@ jobs:
     - name: Instalar dependências backend
       run: cd backend && npm ci
 
-    # A partir daqui, as dependências estar\u00e3o instaladas para os pr\u00f3ximos passos.
+    # A partir daqui, as dependências estarão instaladas para os próximos passos.
     - name: Lint frontend
       run: cd frontend && npm run lint
 
@@ -64,15 +64,22 @@ jobs:
     # Testa os containers
     - name: Test Docker containers
       run: |
-        # Inicia o container do backend
-        docker run --rm -d -p 3000:3000 --name quick-test-backend atende-backend:quick-test
+        # Inicia o container do backend com a porta 3001
+        docker run --rm -d -p 3001:3001 --name quick-test-backend atende-backend:quick-test
+        
+        # Aguarda 10 segundos para o container iniciar
         sleep 10
-        curl -f http://localhost:3000/health || exit 1
+        
+        # Verifica a saúde na porta 3001
+        curl -f http://localhost:3001/health || exit 1
         docker stop quick-test-backend
 
         # Inicia o container do frontend
         docker run --rm -d -p 8080:80 --name quick-test-frontend atende-frontend:quick-test
+        
+        # Aguarda 10 segundos para o container iniciar
         sleep 10
+        
         curl -f http://localhost:8080 || exit 1
         docker stop quick-test-frontend
 
