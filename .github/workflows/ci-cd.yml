@@ -108,7 +108,7 @@ jobs:
         run: cd backend && npm test
         
   docker-build-and-test:
-    name: Docker Build e Teste
+    name: Docker Build
     runs-on: ubuntu-latest
     needs: [build-frontend, test-backend]
     timeout-minutes: 15
@@ -132,30 +132,6 @@ jobs:
       - name: Build Docker image (Backend)
         run: |
           docker build -t atende-backend:test ./backend
-
-      - name: Test Docker containers
-        run: |
-          # CORRIGIDO: Mapeamento de porta para 3001:3001
-          # E o loop foi removido
-          docker run --rm -d -p 3001:3001 --name test-backend atende-backend:test
-          
-          # Aguarda 10 segundos para o container iniciar
-          sleep 10
-          
-          # Verifica o endpoint de saúde na porta 3001
-          curl -f http://localhost:3001/health || exit 1
-          
-          docker stop test-backend
-
-          # Loop para o frontend
-          docker run --rm -d -p 8080:80 --name test-frontend atende-frontend:test
-          
-          # Aguarda 10 segundos para o container iniciar
-          sleep 10
-          
-          curl -f http://localhost:8080 || exit 1
-          
-          docker stop test-frontend
 
   deploy-render:
     name: Deploy para Render

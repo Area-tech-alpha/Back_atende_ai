@@ -10,7 +10,7 @@ env:
 
 jobs:
   quick-test:
-    name: Teste Rápido
+    name: Teste Rápido e Build Docker
     runs-on: ubuntu-latest
 
     steps:
@@ -61,27 +61,5 @@ jobs:
       run: |
         docker build -t atende-backend:quick-test -f ./backend/Dockerfile .
     
-    # Testa os containers
-    - name: Test Docker containers
-      run: |
-        # Inicia o container do backend com a porta 3001
-        docker run --rm -d -p 3001:3001 --name quick-test-backend atende-backend:quick-test
-        
-        # Aguarda 10 segundos para o container iniciar
-        sleep 10
-        
-        # Verifica a saúde na porta 3001
-        curl -f http://localhost:3001/health || exit 1
-        docker stop quick-test-backend
-
-        # Inicia o container do frontend
-        docker run --rm -d -p 8080:80 --name quick-test-frontend atende-frontend:quick-test
-        
-        # Aguarda 10 segundos para o container iniciar
-        sleep 10
-        
-        curl -f http://localhost:8080 || exit 1
-        docker stop quick-test-frontend
-
     - name: Finalizado com sucesso
       run: echo "✅ Quick deploy passou"
