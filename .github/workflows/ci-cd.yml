@@ -22,29 +22,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Usando 'working-directory' para o setup do Node.js
+      # Configuração do Node.js para o frontend
       - name: Setup Node.js (Frontend)
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
-          working-directory: 'frontend' # <--- ADICIONADO AQUI
+          # Caminho correto para o arquivo de lock do frontend
+          cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Instalar dependências frontend
-        # 'npm ci' agora roda dentro da pasta 'frontend'
-        run: npm ci
+        # Navega para o diretório antes de rodar o npm
+        run: cd frontend && npm ci
 
+      # Configuração do Node.js para o backend
       - name: Setup Node.js (Backend)
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
-          working-directory: 'backend' # <--- ADICIONADO AQUI
+          # Caminho correto para o arquivo de lock do backend
+          cache-dependency-path: 'backend/package-lock.json'
 
       - name: Instalar dependências backend
-        run: npm ci
+        run: cd backend && npm ci
 
       - name: Lint frontend
         run: cd frontend && npm run lint
@@ -69,7 +70,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json' # Mantém o caminho explicito
+          cache-dependency-path: 'frontend/package-lock.json'
           
       - name: Instalar dependências frontend
         run: cd frontend && npm ci
@@ -98,7 +99,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: 'backend/package-lock.json' # Mantém o caminho explicito
+          cache-dependency-path: 'backend/package-lock.json'
           
       - name: Instalar dependências backend
         run: cd backend && npm ci
@@ -150,6 +151,8 @@ jobs:
     needs: [docker-build-and-test]
     if: github.ref == 'refs/heads/main'
     timeout-minutes: 15
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }} 
 
     steps:
       - uses: actions/checkout@v4
@@ -161,10 +164,6 @@ jobs:
 
       - name: Deploy Frontend
         run: render-cli deploy --service-id srv-d2b0713uibrs73f4i1kg
-        env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
 
       - name: Deploy Backend
         run: render-cli deploy --service-id srv-d2b04nur433s7399qeq0
-        env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
