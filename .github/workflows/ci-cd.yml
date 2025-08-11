@@ -131,12 +131,14 @@ jobs:
 
       - name: Build Docker image (Backend)
         run: |
-         docker build -t atende-backend:test ./backend
+          docker build -t atende-backend:test ./backend
 
       - name: Test Docker containers
         run: |
-          docker run --rm -d -p 3000:3000 --name test-backend atende-backend:test
-          sleep 10
+          # Mapeamento da porta corrigido para que a porta 3000 do host se conecte à 3001 do container.
+          docker run --rm -d -p 3000:3001 --name test-backend atende-backend:test
+          # Tempo de espera aumentado para garantir que o servidor inicialize completamente.
+          sleep 15
           curl -f http://localhost:3000/health || exit 1
           docker stop test-backend
 
