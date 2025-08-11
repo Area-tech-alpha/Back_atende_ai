@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from "react";
-// @ts-ignore
-import QRCode from "qrcode.react";
 import {
   Box,
   Typography,
@@ -9,6 +7,8 @@ import {
   TextField,
   Button,
 } from "@mui/material";
+
+import { QRCodeSVG } from "qrcode.react";
 
 const API_URL = "https://atende-ai-z2n7.onrender.com/api";
 
@@ -88,8 +88,7 @@ const ConnectWhatsApp: React.FC = () => {
 
     connect();
     return () => clearInterval(interval);
-  }, [isConnected, deviceId, startConnection, phoneNumberInput]); // phoneNumberInput e isConnected adicionados
-  // O ESLint estava reclamando que phoneNumberInput e isConnected não estavam nas dependências.
+  }, [isConnected, deviceId, startConnection, phoneNumberInput]);
 
   const handleConnectClick = () => {
     if (phoneNumberInput) {
@@ -154,7 +153,8 @@ const ConnectWhatsApp: React.FC = () => {
           <Typography variant="body1" sx={{ mb: 2 }}>
             Escaneie o QR Code com seu WhatsApp
           </Typography>
-          <QRCode value={qrCode} size={256} level="H" includeMargin={true} />
+          {/* O componente agora se chama QRCodeSVG */}
+          <QRCodeSVG value={qrCode} size={256} level="H" includeMargin={true} />
         </Paper>
       )}
 
