@@ -17,6 +17,7 @@ jobs:
   lint-and-type-check:
     name: Lint e Type Check
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
     - uses: actions/checkout@v4
@@ -54,6 +55,7 @@ jobs:
     name: Build Frontend
     runs-on: ubuntu-latest
     needs: lint-and-type-check
+    timeout-minutes: 10
 
     steps:
     - uses: actions/checkout@v4
@@ -63,8 +65,7 @@ jobs:
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
-        cache-dependency-path: 'frontend/package-lock.json' 
-
+        # Removido o cache-dependency-path para evitar problemas de cache
     - name: Instalar dependências frontend
       run: cd frontend && npm ci
 
@@ -82,6 +83,7 @@ jobs:
     name: Test Backend
     runs-on: ubuntu-latest
     needs: lint-and-type-check
+    timeout-minutes: 10
 
     steps:
     - uses: actions/checkout@v4
@@ -97,12 +99,13 @@ jobs:
       run: cd backend && npm ci
 
     - name: Rodar testes backend
-      run: cd backend && npm test || true
+      run: cd backend && npm test
 
   docker-build-and-test:
     name: Docker Build e Teste
     runs-on: ubuntu-latest
     needs: [build-frontend, test-backend]
+    timeout-minutes: 15
 
     steps:
     - uses: actions/checkout@v4
@@ -141,6 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [docker-build-and-test]
     if: github.ref == 'refs/heads/main'
+    timeout-minutes: 15
 
     steps:
     - uses: actions/checkout@v4
