@@ -131,7 +131,7 @@ jobs:
 
       - name: Build Docker image (Backend)
         run: |
-          docker build -t atende-backend:test -f ./backend/Dockerfile .
+         docker build -t atende-backend:test ./backend
 
       - name: Test Docker containers
         run: |

@@ -1,30 +1,27 @@
-# Etapa 1: Construção da imagem do backend
+# Usa a imagem base do Node.js
+# Usamos a versão 20-slim para uma imagem mais leve
 FROM node:20-slim
 
-# Instala dependências de sistema para o node-gyp (necessárias para algumas libs como a do WhatsApp)
+# Instala as dependências de build necessárias para algumas bibliotecas Node.js
+# como `bcrypt` que requerem Python e g++
 RUN apt-get update && apt-get install -y python3 make g++ curl && rm -rf /var/lib/apt/lists/*
 
 # Define o diretório de trabalho dentro do container
 WORKDIR /app
 
-# Copia e instala as dependências do backend
-COPY ./backend/package.json ./
-COPY ./backend/package-lock.json ./
+# Copia os arquivos de configuração do projeto e instala as dependências
+# O contexto de build já é a pasta 'backend', então não precisamos do prefixo
+COPY package.json ./
+COPY package-lock.json ./
 RUN npm install --legacy-peer-deps
 
 # Copia o restante do código da aplicação backend
-COPY ./backend/ .
+# O ponto final '.' no destino refere-se ao WORKDIR, ou seja, /app
+COPY . .
 
-# Variáveis de ambiente padrão
-ENV NODE_ENV=production
-ENV PORT=3000
-
-# Expõe a porta que o servidor irá usar
+# Expõe a porta que a aplicação irá usar
 EXPOSE 3000
 
-# Healthcheck para o Railway saber se a aplicação está de pé
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
-
-# Comando para iniciar o servidor usando o script 'start:all'
-CMD ["npm", "run", "start:all"]
+# Comando para rodar a aplicação quando o container iniciar
+# Usamos 'npm run dev' para facilitar o desenvolvimento
+CMD [ "npm", "run", "dev" ]
