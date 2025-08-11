@@ -135,10 +135,11 @@ jobs:
 
       - name: Test Docker containers
         run: |
-          # Mapeamento da porta corrigido para que a porta 3000 do host se conecte à 3001 do container.
-          docker run --rm -d -p 3000:3001 --name test-backend atende-backend:test
+          # CORREÇÃO: Mapeamento da porta corrigido para 3000:3000,
+          # correspondendo ao EXPOSE 3000 do Dockerfile do backend.
+          docker run --rm -d -p 3000:3000 --name test-backend atende-backend:test
           
-          # Novo loop de retentativas para garantir que o serviço do backend esteja pronto.
+          # Loop de retentativas para garantir que o serviço do backend esteja pronto.
           max_retries=10
           retry_interval=10
           for i in $(seq 1 $max_retries); do
