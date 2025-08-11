@@ -145,10 +145,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node.js (Render CLI)
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Instalar Render CLI
-        run: |
-          curl -o /usr/local/bin/render-cli https://raw.githubusercontent.com/render-examples/render-cli/main/render-cli
-          chmod +x /usr/local/bin/render-cli
+        run: npm install -g @render-public/cli
 
       - name: Deploy Frontend
         run: render-cli deploy --service-id srv-d2b0713uibrs73f4i1kg
