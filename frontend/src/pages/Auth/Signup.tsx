@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { MessagesSquare } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 

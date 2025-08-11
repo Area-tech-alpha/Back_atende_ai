@@ -1,11 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const DEFAULT_TOOLS = [
-  { type: 'web_search' },
-  { type: 'code_interpreter' },
-  { type: 'image_generation' }
-];
 
 const initialForm = {
   instructions: '',
@@ -19,12 +14,14 @@ export default function CreateAgent() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
-  const handleChange = (e) => {
+  // Adicionando a tipagem para o evento de mudança (e)
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
   };
 
-  const handleSubmit = async (e) => {
+  // Adicionando a tipagem para o evento de submit do formulário (e)
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setSuccess(false);
@@ -60,4 +57,4 @@ export default function CreateAgent() {
       </form>
     </div>
   );
-} 
+}

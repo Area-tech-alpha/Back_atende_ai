@@ -167,7 +167,7 @@ const OverviewChart: React.FC<OverviewChartProps> = ({ campaignId, instanceName 
     }
 
     // Draw datasets
-    chartData.datasets.forEach((dataset, index) => {
+    chartData.datasets.forEach((dataset, ) => {
       ctx.beginPath();
       ctx.strokeStyle = dataset.color;
       ctx.lineWidth = 3;

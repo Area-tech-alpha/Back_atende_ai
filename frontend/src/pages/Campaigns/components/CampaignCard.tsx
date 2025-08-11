@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, BarChart2, ArrowUpRight } from 'lucide-react';
+import { Calendar, ArrowUpRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CampaignDetailsModal from './CampaignDetailsModal';
 
@@ -51,17 +51,6 @@ const CampaignCard: React.FC<CampaignCardProps> = ({ campaign, reuseCampaign }) 
     };
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
-
-  // Calculate delivery rate
-  const deliveryRate = campaign.sentCount ? 
-    ((campaign.deliveredCount / campaign.sentCount) * 100).toFixed(1) :
-    '0';
-
-  // Calculate read rate
-  const readRate = campaign.deliveredCount ? 
-    ((campaign.readCount / campaign.deliveredCount) * 100).toFixed(1) :
-    '0';
-
   return (
     <div className="card group hover:shadow-glow transition-all duration-300">
       <div className="flex justify-between items-start mb-3">

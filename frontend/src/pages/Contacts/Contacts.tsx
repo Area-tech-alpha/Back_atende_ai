@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Briefcase, ChevronRight, Mail, Phone } from 'lucide-react';
+import { ChevronRight, Mail, Phone } from 'lucide-react';
 
 // Importa a imagem fornecida para o perfil dos contatos
 const contactImage = `uploaded:image_85aa49.png-810e788f-67e2-4256-a230-2f52b8fc902b`;
@@ -14,7 +14,7 @@ interface Contact {
 
 const Contacts: React.FC = () => {
   // Dados de exemplo para a lista de contatos
-  const [contacts, setContacts] = useState<Contact[]>([
+  const [contacts] = useState<Contact[]>([
     { id: 1, name: 'João Silva', role: 'Gerente de Vendas', email: 'joao.s@exemplo.com', phone: '(11) 98765-4321' },
     { id: 2, name: 'Maria Souza', role: 'Designer UX/UI', email: 'maria.s@exemplo.com', phone: '(11) 91234-5678' },
     { id: 3, name: 'Pedro Santos', role: 'Desenvolvedor Full-Stack', email: 'pedro.s@exemplo.com', phone: '(11) 99876-5432' },

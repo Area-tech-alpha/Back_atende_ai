@@ -12,7 +12,6 @@ import Settings from './pages/Settings/Settings';
 import Layout from './components/Layout/Layout';
 import NotFound from './pages/NotFound';
 import Instances from './pages/Evolution';
-import Baileys from './pages/Baileys/Baileys';
 import Chat from './pages/Chat';
 import ConnectWhatsApp from './pages/ConnectWhatsApp';
 import WhatsAppConnections from './pages/WhatsAppConnections';

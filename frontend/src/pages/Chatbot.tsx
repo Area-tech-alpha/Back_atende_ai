@@ -1,8 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 
+// Definindo o tipo para um agente
+type Agent = {
+  id: string;
+  name: string;
+  description: string;
+  model: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export default function Chatbot() {
-  const [agents, setAgents] = useState([]);
+  // Agora o estado 'agents' é um array de objetos do tipo 'Agent'
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -43,10 +54,9 @@ export default function Chatbot() {
             <div className="text-xs text-gray-400">Modelo: {agent.model}</div>
             <div className="text-xs text-gray-400">Criado em: {new Date(agent.created_at).toLocaleString()}</div>
             <div className="text-xs text-gray-400">Atualizado em: {new Date(agent.updated_at).toLocaleString()}</div>
-            {/* Adicione mais campos relevantes conforme a resposta da API */}
           </li>
         ))}
       </ul>
     </div>
   );
-} 
+}

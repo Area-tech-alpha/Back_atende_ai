@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
+
 
 interface StatCardProps {
   title: string;
@@ -13,8 +13,6 @@ interface StatCardProps {
 const StatCard: React.FC<StatCardProps> = ({ 
   title, 
   value, 
-  change, 
-  isIncrease, 
   icon,
   iconBg 
 }) => {

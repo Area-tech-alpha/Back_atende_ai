@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  LayoutDashboard, MessagesSquare, FileText, Users, Settings,
-  Menu, X, LogOut, Bell, ChevronDown, Sparkles, Bot, Smartphone, Zap, MessageSquare, MessageCircle, Phone
+  LayoutDashboard, FileText, Users, 
+  Menu, X, LogOut, Bell, ChevronDown, Smartphone, Phone
 } from 'lucide-react';
 
 const Layout = () => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Plus, Loader2, X, QrCode, Trash2, RefreshCw, Webhook, MessageSquare } from 'lucide-react';
+import { Plus, Loader2, X, QrCode, Trash2, Webhook, MessageSquare } from 'lucide-react';
 
 interface Instance {
   id: string;
@@ -50,11 +50,11 @@ interface Assistant {
   model: string;
 }
 
-const API_KEY = 'f5ec3e06222808fab768cfbb1de84a2c'; 
-const FETCH_URL = 'https://evolution2.assessorialpha.com/instance/fetchInstances';
-const CREATE_URL = 'https://evolution2.assessorialpha.com/instance/create';
-const CONNECT_URL = 'https://evolution2.assessorialpha.com/instance/connect/';
-const DELETE_URL = 'https://evolution2.assessorialpha.com/instance/delete/';
+// const API_KEY = 'f5ec3e06222808fab768cfbb1de84a2c'; 
+// const FETCH_URL = 'https://evolution2.assessorialpha.com/instance/fetchInstances';
+// const CREATE_URL = 'https://evolution2.assessorialpha.com/instance/create';
+// const CONNECT_URL = 'https://evolution2.assessorialpha.com/instance/connect/';
+// const DELETE_URL = 'https://evolution2.assessorialpha.com/instance/delete/';
 
 const defaultForm = {
   instanceName: '',

@@ -9,7 +9,7 @@ import { CheckCircle, ErrorOutline, QrCode2 } from '@mui/icons-material';
 
 const YELLOW = '#FFD600';
 const YELLOW_DARK = '#FFC400';
-const GRAY_BG = '#FFFDE7';
+// const GRAY_BG = '#FFFDE7';
 
 const ConnectWhatsApp: React.FC = () => {
   const { user } = useAuth();

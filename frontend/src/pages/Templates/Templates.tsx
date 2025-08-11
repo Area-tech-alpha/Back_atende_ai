@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Plus, Search, Smartphone, Copy, Edit, Trash2 } from 'lucide-react';
 
 const Templates = () => {
