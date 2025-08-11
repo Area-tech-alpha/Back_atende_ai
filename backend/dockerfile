@@ -8,11 +8,12 @@ RUN apt-get update && apt-get install -y python3 make g++ curl && rm -rf /var/li
 WORKDIR /app
 
 # Copia e instala as dependências do backend
-COPY package*.json ./
+COPY ./backend/package.json ./
+COPY ./backend/package-lock.json ./
 RUN npm install --legacy-peer-deps
 
 # Copia o restante do código da aplicação backend
-COPY . .
+COPY ./backend/ .
 
 # Variáveis de ambiente padrão
 ENV NODE_ENV=production

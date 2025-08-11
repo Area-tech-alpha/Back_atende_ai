@@ -6,11 +6,12 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copia e instala as dependências do frontend.
-COPY package*.json ./
+COPY ./frontend/package.json ./
+COPY ./frontend/package-lock.json ./
 RUN npm install --legacy-peer-deps
 
 # Copia o restante do código.
-COPY . .
+COPY ./frontend/ .
 
 # Para que o Vite leia as variáveis de ambiente do Render,
 # é necessário passá-las diretamente para o comando de build.
