@@ -137,14 +137,45 @@ jobs:
         run: |
           # Mapeamento da porta corrigido para que a porta 3000 do host se conecte à 3001 do container.
           docker run --rm -d -p 3000:3001 --name test-backend atende-backend:test
-          # Tempo de espera aumentado para garantir que o servidor inicialize completamente.
-          sleep 15
-          curl -f http://localhost:3000/health || exit 1
+          
+          # Novo loop de retentativas para garantir que o serviço do backend esteja pronto.
+          max_retries=10
+          retry_interval=10
+          for i in $(seq 1 $max_retries); do
+            echo "Tentativa $i de $max_retries para verificar o backend..."
+            if curl -f http://localhost:3000/health; then
+              echo "Backend está online! Continuando com os testes."
+              break
+            fi
+            if [ $i -eq $max_retries ]; then
+              echo "Erro: O backend não respondeu após $max_retries tentativas."
+              exit 1
+            fi
+            echo "Backend ainda não está pronto. Esperando $retry_interval segundos..."
+            sleep $retry_interval
+          done
+
           docker stop test-backend
 
+          # Loop para o frontend
           docker run --rm -d -p 8080:80 --name test-frontend atende-frontend:test
-          sleep 10
-          curl -f http://localhost:8080 || exit 1
+          
+          max_retries=5
+          retry_interval=5
+          for i in $(seq 1 $max_retries); do
+            echo "Tentativa $i de $max_retries para verificar o frontend..."
+            if curl -f http://localhost:8080; then
+              echo "Frontend está online! Continuando com os testes."
+              break
+            fi
+            if [ $i -eq $max_retries ]; then
+              echo "Erro: O frontend não respondeu após $max_retries tentativas."
+              exit 1
+            fi
+            echo "Frontend ainda não está pronto. Esperando $retry_interval segundos..."
+            sleep $retry_interval
+          done
+          
           docker stop test-frontend
 
   deploy-render:
