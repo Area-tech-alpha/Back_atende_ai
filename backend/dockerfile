@@ -10,18 +10,18 @@ RUN apt-get update && apt-get install -y python3 make g++ curl && rm -rf /var/li
 WORKDIR /app
 
 # Copia os arquivos de configuração do projeto e instala as dependências
-# O contexto de build já é a pasta 'backend', então não precisamos do prefixo
 COPY package.json ./
 COPY package-lock.json ./
-RUN npm install --legacy-peer-deps
+# Instala as dependências de producao.
+# A flag '--legacy-peer-deps' pode ser necessaria dependendo da versao das dependencias.
+RUN npm install --legacy-peer-deps --production
 
-# Copia o restante do código da aplicação backend
-# O ponto final '.' no destino refere-se ao WORKDIR, ou seja, /app
+# Copia o restante do código da aplicacao
 COPY . .
 
 # Expõe a porta que a aplicação irá usar
 EXPOSE 3000
 
-# Comando para rodar a aplicação quando o container iniciar
-# Usamos 'npm run dev' para facilitar o desenvolvimento
-CMD [ "npm", "run", "dev" ]
+# Comando para rodar a aplicação quando o container iniciar.
+# O comando 'start' é o padrão para ambientes de produção.
+CMD [ "npm", "run", "start" ]
