@@ -152,16 +152,11 @@ jobs:
     env:
       # A chave de API para o Render CLI
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-      # O token que você gerou para autenticação do GitHub Actions
-      GITHUB_TOKEN: ${{ secrets.RENDER_DEPLOY_TOKEN }}
       
     steps:
-      # Faz o checkout usando o token do GitHub
-      - name: Checkout com o token do GitHub
-        uses: actions/checkout@v4
-        with:
-          token: ${{ env.GITHUB_TOKEN }}
-          
+      # Faz o checkout do repositório
+      - uses: actions/checkout@v4
+      
       - name: Instalar Render CLI
         run: |
           curl -L https://github.com/render-oss/cli/releases/download/v${{ env.RENDER_CLI_VERSION }}/cli_${{ env.RENDER_CLI_VERSION }}_linux_amd64.zip -o render.zip
@@ -169,7 +164,9 @@ jobs:
           sudo mv cli_v${{ env.RENDER_CLI_VERSION }} /usr/local/bin/render
           
       - name: Deploy Frontend
-        run: render deploy ${{ secrets.RENDER_FRONTEND_SERVICE_ID }}
+        # Comando corrigido com --output json --confirm para modo não interativo
+        run: render deploys create ${{ secrets.RENDER_FRONTEND_SERVICE_ID }} --output json --confirm
 
       - name: Deploy Backend
-        run: render deploy ${{ secrets.RENDER_BACKEND_SERVICE_ID }}
+        # Comando corrigido com --output json --confirm para modo não interativo
+        run: render deploys create ${{ secrets.RENDER_BACKEND_SERVICE_ID }} --output json --confirm
