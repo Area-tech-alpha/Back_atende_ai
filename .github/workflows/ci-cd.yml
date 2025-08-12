@@ -8,12 +8,13 @@ on:
   # O pipeline irá rodar sempre que houver um pull request para a branch 'main'
   pull_request:
     branches: [ main ]
-  # Esta linha permite que você rode o pipeline manualmente a partir da UI do GitHub
+  # roda o pipeline manualmente a partir da UI do GitHub
   workflow_dispatch:
 
-# Permissões do GitHub Actions para acessar o repositório
+# Adicione o bloco de permissões para a autenticação do Render
 permissions:
   contents: read
+  id-token: write
 
 env:
   # Versão do Node.js, fácil de atualizar
