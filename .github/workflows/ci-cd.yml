@@ -144,7 +144,7 @@ jobs:
 
       - name: Build Docker image (Frontend)
         run: |
-          docker build -t atende-frontend:test -f ./frontend/Dockerfile .
+          docker build -t atende-frontend:test -f ./frontend/Dockerfile ./frontend
 
       - name: Build Docker image (Backend)
         run: |
