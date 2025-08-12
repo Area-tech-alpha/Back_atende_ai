@@ -30,6 +30,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RENDER_GITHUB_PAT }} # Adicionado o token aqui
 
       # Configuração do Node.js para o frontend
       - name: Setup Node.js (Frontend)
@@ -71,6 +73,8 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RENDER_GITHUB_PAT }} # Adicionado o token aqui
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -101,6 +105,8 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RENDER_GITHUB_PAT }} # Adicionado o token aqui
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -124,6 +130,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RENDER_GITHUB_PAT }} # Adicionado o token aqui
 
       - name: Download build frontend
         uses: actions/download-artifact@v4
@@ -156,6 +164,8 @@ jobs:
     steps:
       # Faz o checkout do repositório
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RENDER_GITHUB_PAT }} # Adicionado o token aqui
       
       - name: Instalar Render CLI
         run: |
