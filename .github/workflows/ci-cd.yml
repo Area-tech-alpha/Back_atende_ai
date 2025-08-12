@@ -14,7 +14,6 @@ on:
 # Adicione o bloco de permissões para a autenticação do Render
 permissions:
   contents: read
-  id-token: write
 
 env:
   # Versão do Node.js, fácil de atualizar
@@ -31,8 +30,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.RENDER_DEPLOY_TOKEN }}
 
       # Configuração do Node.js para o frontend
       - name: Setup Node.js (Frontend)
@@ -74,8 +71,6 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.RENDER_DEPLOY_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -106,8 +101,6 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.RENDER_DEPLOY_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -131,8 +124,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.RENDER_DEPLOY_TOKEN }}
 
       - name: Download build frontend
         uses: actions/download-artifact@v4
@@ -165,8 +156,6 @@ jobs:
     steps:
       # Faz o checkout do repositório
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.RENDER_DEPLOY_TOKEN }}
       
       - name: Instalar Render CLI
         run: |
