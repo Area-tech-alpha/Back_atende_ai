@@ -160,12 +160,13 @@ jobs:
     env:
       # A chave de API para o Render CLI
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_GITHUB_TOKEN: ${{ secrets.RENDER_GITHUB_PAT }}
       
     steps:
       # Faz o checkout do repositório
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.RENDER_GITHUB_PAT }} # Adicionado o token aqui
+          token: ${{ secrets.RENDER_GITHUB_PAT }}
       
       - name: Instalar Render CLI
         run: |
@@ -174,9 +175,7 @@ jobs:
           sudo mv cli_v${{ env.RENDER_CLI_VERSION }} /usr/local/bin/render
           
       - name: Deploy Frontend
-        # Comando corrigido com a passagem do token do GitHub diretamente na CLI
-        run: render --github-token=${{ secrets.RENDER_GITHUB_PAT }} deploys create ${{ secrets.RENDER_FRONTEND_SERVICE_ID }} --output json --confirm
+        run: render deploys create ${{ secrets.RENDER_FRONTEND_SERVICE_ID }} --output json --confirm
 
       - name: Deploy Backend
-        # Comando corrigido com a passagem do token do GitHub diretamente na CLI
-        run: render --github-token=${{ secrets.RENDER_GITHUB_PAT }} deploys create ${{ secrets.RENDER_BACKEND_SERVICE_ID }} --output json --confirm
+        run: render deploys create ${{ secrets.RENDER_BACKEND_SERVICE_ID }} --output json --confirm
