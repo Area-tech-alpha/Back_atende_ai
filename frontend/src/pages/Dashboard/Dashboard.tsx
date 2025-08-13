@@ -1,76 +1,285 @@
-import React from 'react';
-import { TrendingUp, Users, ShoppingCart, DollarSign } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowUpRight, MessageCircle, Users, Clock, RefreshCw, Loader2 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
+import StatCard from './components/StatCard';
+import CampaignTable from './components/CampaignTable';
+import OverviewChart from './components/OverviewChart';
 
-// Importa a imagem fornecida para o dashboard
-const dashboardImage = `uploaded:image_863927.png-efc1fb1f-54dc-4700-a2d3-0a025e061401`;
+type CampaignStatus = 'Concluída' | 'Agendada' | 'Em Andamento' | 'Rascunho';
 
-const Dashboard: React.FC = () => {
+interface DashboardStats {
+  totalMessages: number;
+  totalContacts: number;
+  deliveryRate: number;
+  avgResponseTime: number;
+  messageChange: number;
+  contactChange: number;
+  deliveryChange: number;
+  responseChange: number;
+}
+
+interface Campaign {
+  id: number;
+  name: string;
+  status: CampaignStatus;
+  messages: number;
+  delivered: number;
+  deliveryRate: number;
+  date: string;
+  nome_da_instancia?: string;
+}
+
+const Dashboard = () => {
+  const [stats, setStats] = useState<DashboardStats>({
+    totalMessages: 0,
+    totalContacts: 0,
+    deliveryRate: 0,
+    avgResponseTime: 0,
+    messageChange: 0,
+    contactChange: 0,
+    deliveryChange: 0,
+    responseChange: 0
+  });
+  const [recentCampaigns, setRecentCampaigns] = useState<Campaign[]>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  
+  const fetchDashboardData = async (campaignId?: number) => {
+    try {
+      if (!user) return;
+
+      const { data: contactsData, error: contactsError } = await supabase
+        .from('contato_evolution')
+        .select('id')
+        .eq('relacao_login', user.id);
+
+      if (contactsError) throw contactsError;
+
+      const contactIds = contactsData?.map(contact => contact.id) || [];
+
+      let messagesQuery = supabase
+        .from('mensagem_evolution')
+        .select('*')
+        .in('contatos', contactIds)
+        .order('created_at', { ascending: false });
+
+      if (campaignId) {
+        messagesQuery = messagesQuery.eq('id', campaignId);
+      }
+
+      const { data: messagesData, error: messagesError } = await messagesQuery;
+
+      if (messagesError) throw messagesError;
+
+      const messageIds = messagesData?.map(msg => msg.id) || [];
+      const { data: enviosData, error: enviosError } = await supabase
+        .from('envio_evolution')
+        .select('*')
+        .in('id_mensagem', messageIds);
+
+      if (enviosError) throw enviosError;
+
+      const totalMessages = enviosData?.length || 0;
+      let totalContacts = 0;
+      if (contactsData) {
+        const { data: allContactsData, error: allContactsError } = await supabase
+            .from('contato_evolution')
+            .select('contatos')
+            .in('id', contactIds);
+        if (!allContactsError) {
+            totalContacts = allContactsData.reduce((acc, list) => acc + (JSON.parse(list.contatos || '[]')).length, 0);
+        }
+      }
+
+      const deliveredMessages = enviosData?.filter(e => e.status === 'success' || e.status === 'read').length || 0;
+      const deliveryRate = totalMessages > 0 ? (deliveredMessages / totalMessages) * 100 : 0;
+
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      
+      const recentMessages = enviosData?.filter(e => new Date(e.created_at) > thirtyDaysAgo).length || 0;
+      const oldMessages = totalMessages - recentMessages;
+      const messageChange = oldMessages > 0 ? ((recentMessages - oldMessages) / oldMessages) * 100 : 0;
+
+      let avgResponseTime = 0;
+      if (enviosData && enviosData.length > 1) {
+        const sortedEnvios = [...enviosData].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        let totalDiff = 0;
+        for (let i = 1; i < sortedEnvios.length; i++) {
+          const prev = new Date(sortedEnvios[i - 1].created_at).getTime();
+          const curr = new Date(sortedEnvios[i].created_at).getTime();
+          totalDiff += (curr - prev);
+        }
+        const avgDiffMs = totalDiff / (sortedEnvios.length - 1);
+        avgResponseTime = avgDiffMs / 1000 / 60;
+      }
+
+      setStats({
+        totalMessages,
+        totalContacts,
+        deliveryRate,
+        avgResponseTime: Number(avgResponseTime.toFixed(1)),
+        messageChange,
+        contactChange: 0,
+        deliveryChange: 0,
+        responseChange: 0
+      });
+
+      const formattedCampaigns: Campaign[] = messagesData?.map(message => {
+        const messageEnvios = enviosData?.filter(e => e.id_mensagem === message.id) || [];
+        const delivered = messageEnvios.filter(e => e.status === 'success' || e.status === 'read').length;
+        const deliveryRate = messageEnvios.length > 0 ? (delivered / messageEnvios.length) * 100 : 0;
+
+        return {
+          id: message.id,
+          name: message.name || `Campaign ${message.id}`,
+          status: message.status as CampaignStatus,
+          messages: messageEnvios.length,
+          delivered,
+          deliveryRate,
+          date: message.scheduled_date || message.created_at,
+          nome_da_instancia: message.nome_da_instancia
+        };
+      }) || [];
+
+      setRecentCampaigns(formattedCampaigns);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData(selectedCampaign || undefined);
+  }, [user, selectedCampaign]);
+
+  const handleCampaignChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const campaignId = e.target.value ? Number(e.target.value) : null;
+    setSelectedCampaign(campaignId);
+  };
+  
+  // AQUI COMEÇAM AS MUDANÇAS DE ESTILO
+  const statCards = [
+    { 
+      title: 'Mensagens Enviadas', 
+      value: stats.totalMessages.toLocaleString(), 
+      change: `${stats.messageChange >= 0 ? '+' : ''}${stats.messageChange.toFixed(1)}%`, 
+      isIncrease: stats.messageChange >= 0,
+      icon: <MessageCircle className="text-primary" size={20} />, // Usa a cor primária
+      iconBg: 'bg-primary/10' // Usa a cor primária com 10% de opacidade
+    },
+    { 
+      title: 'Contatos Totais', 
+      value: stats.totalContacts.toLocaleString(), 
+      change: `${stats.contactChange >= 0 ? '+' : ''}${stats.contactChange.toFixed(1)}%`, 
+      isIncrease: stats.contactChange >= 0,
+      icon: <Users className="text-primary" size={20} />,
+      iconBg: 'bg-primary/10'
+    },
+    { 
+      title: 'Taxa de Entrega', 
+      value: `${stats.deliveryRate.toFixed(1)}%`, 
+      change: `${stats.deliveryChange >= 0 ? '+' : ''}${stats.deliveryChange.toFixed(1)}%`, 
+      isIncrease: stats.deliveryChange >= 0,
+      icon: <ArrowUpRight className="text-primary" size={20} />,
+      iconBg: 'bg-primary/10' 
+    },
+    { 
+      title: 'Intervalo Médio', 
+      value: `${stats.avgResponseTime.toFixed(1)} min`, 
+      change: `${stats.responseChange >= 0 ? '+' : ''}${stats.responseChange.toFixed(1)}%`, 
+      isIncrease: stats.responseChange < 0,
+      icon: <Clock className="text-primary" size={20} />, 
+      iconBg: 'bg-primary/10' 
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-gray-100 min-h-screen p-8 font-sans">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <button className="bg-blue-600 text-white px-6 py-2 rounded-full font-medium shadow-md hover:bg-blue-700 transition-colors">
-          Novo Relatório
-        </button>
-      </div>
-
-      {/* Grid de cards com dados e ícones */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-2xl shadow-lg flex items-center justify-between">
-          <div>
-            <p className="text-gray-500 text-sm font-medium">Receita Total</p>
-            <h2 className="text-3xl font-bold text-gray-900 mt-1">R$ 45.678,90</h2>
-          </div>
-          <div className="p-3 bg-blue-100 rounded-full text-blue-600">
-            <DollarSign size={28} />
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-lg flex items-center justify-between">
-          <div>
-            <p className="text-gray-500 text-sm font-medium">Vendas</p>
-            <h2 className="text-3xl font-bold text-gray-900 mt-1">1.250</h2>
-          </div>
-          <div className="p-3 bg-green-100 rounded-full text-green-600">
-            <ShoppingCart size={28} />
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-lg flex items-center justify-between">
-          <div>
-            <p className="text-gray-500 text-sm font-medium">Novos Clientes</p>
-            <h2 className="text-3xl font-bold text-gray-900 mt-1">324</h2>
-          </div>
-          <div className="p-3 bg-purple-100 rounded-full text-purple-600">
-            <Users size={28} />
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-lg flex items-center justify-between">
-          <div>
-            <p className="text-gray-500 text-sm font-medium">Taxa de Crescimento</p>
-            <h2 className="text-3xl font-bold text-gray-900 mt-1">12,4%</h2>
-          </div>
-          <div className="p-3 bg-red-100 rounded-full text-red-600">
-            <TrendingUp size={28} />
-          </div>
+    <div className="space-y-8">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-text-primary">
+          Painel de Controle
+        </h1>
+        <div className="flex items-center space-x-4">
+          <select 
+            value={selectedCampaign || ''} 
+            onChange={handleCampaignChange}
+            // Classes atualizadas para o seletor
+            className="w-full md:w-auto px-3 py-2 bg-surface border border-border rounded-lg text-text-primary focus:ring-2 focus:ring-primary focus:border-primary"
+          >
+            <option value="">Todas as Campanhas</option>
+            {recentCampaigns.map(campaign => (
+              <option key={campaign.id} value={campaign.id}>
+                {campaign.name}
+              </option>
+            ))}
+          </select>
+          <button 
+            onClick={() => fetchDashboardData(selectedCampaign || undefined)}
+            // Classes atualizadas para o botão
+            className="px-4 py-2 bg-muted text-text-primary rounded-lg hover:bg-border transition-colors flex items-center space-x-2"
+          >
+            <RefreshCw size={16} />
+            <span>Atualizar</span>
+          </button>
         </div>
       </div>
 
-      {/* Seção principal com a imagem do dashboard */}
-      <div className="bg-white p-6 rounded-2xl shadow-lg">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Visão Geral</h2>
-        <img
-          className="w-full h-auto rounded-xl object-cover"
-          src={dashboardImage}
-          alt="Visão geral do dashboard"
-          // Adiciona um fallback simples se a imagem não carregar
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.onerror = null;
-            target.src = "https://placehold.co/1200x600/E5E7EB/4B5563?text=Visão+Geral+do+Dashboard";
-          }}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {statCards.map((stat, index) => (
+          // O componente StatCard internamente usará bg-surface, border-border, etc.
+          <StatCard key={index} {...stat} />
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Classes atualizadas para o card do gráfico */}
+        <div className="lg:col-span-2 bg-surface p-6 rounded-lg border border-border">
+            <h2 className="text-xl font-bold text-text-primary mb-6">Atividade de Mensagens</h2>
+            <OverviewChart campaignId={selectedCampaign} />
+        </div>
+        {/* Classes atualizadas para o card de status */}
+        <div className="bg-surface p-6 rounded-lg border border-border">
+            <h2 className="text-xl font-bold text-text-primary mb-6">Status das Campanhas</h2>
+            <div className="space-y-5">
+            {['Concluída', 'Em Andamento', 'Agendada', 'Rascunho'].map((status) => {
+                const count = recentCampaigns.filter(c => c.status === status).length;
+                const percentage = recentCampaigns.length > 0 ? (count / recentCampaigns.length) * 100 : 0;
+                
+                return (
+                    <div key={status}>
+                        {/* Texto secundário para status e contagem */}
+                        <div className="flex justify-between text-sm mb-1 text-text-secondary">
+                            <span>{status}</span>
+                            <span>{count}</span>
+                        </div>
+                        {/* Fundo da barra de progresso */}
+                        <div className="w-full bg-muted rounded-full h-2">
+                            {/* Barra de progresso com a cor primária */}
+                            <div className="bg-primary h-2 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }}></div>
+                        </div>
+                    </div>
+                );
+            })}
+            </div>
+        </div>
+      </div>
+
+      {/* Classes atualizadas para a tabela de campanhas */}
+      <div className="bg-surface p-6 rounded-lg border border-border">
+        <h2 className="text-xl font-bold text-text-primary mb-6">Campanhas Recentes</h2>
+        <CampaignTable campaigns={recentCampaigns} />
       </div>
     </div>
   );
