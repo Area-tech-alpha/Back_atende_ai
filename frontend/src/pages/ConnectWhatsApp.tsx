@@ -1,223 +1,205 @@
-import { useState, useEffect, useCallback } from 'react';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { QRCodeSVG } from 'qrcode.react';
-import { Dialog, DialogContent, DialogTitle, TextField, Button, Box, Typography, CircularProgress } from '@mui/material';
-import { API_ENDPOINTS } from '../config/api';
-import { CheckCircle, ErrorOutline, QrCode2 } from '@mui/icons-material';
-
-const YELLOW = '#FFD600';
-const YELLOW_DARK = '#FFC400';
-// const GRAY_BG = '#FFFDE7';
+// Ícones do Lucide para manter a consistência do tema
+import { QrCode, CheckCircle, AlertTriangle, Loader2, X } from 'lucide-react';
 
 const ConnectWhatsApp: React.FC = () => {
   const { user } = useAuth();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [qrCode, setQrCode] = useState<string | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<string>('Desconectado');
+  const [connectionStatus, setConnectionStatus] = useState<'Desconectado' | 'Conectando...' | 'Aguardando QR' | 'Conectado'>('Desconectado');
   const [openQRDialog, setOpenQRDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionName, setConnectionName] = useState('');
+  
+  // Pega a URL da API a partir das variáveis de ambiente para corrigir o erro 404
+  const API_URL = import.meta.env.VITE_API_URL;
 
-  const pollQrCode = useCallback(async (deviceId: string) => {
+  // Função para buscar o QR code do backend de forma insistente
+  const pollQrCode = async (deviceId: string) => {
     let attempts = 0;
+    // Tenta por até 30 segundos
     while (attempts < 15) {
       try {
-        const res = await fetch(`/api/whatsapp/qr/${deviceId}`);
+        const res = await fetch(`${API_URL}/api/whatsapp/qr/${deviceId}`);
         if (res.ok) {
           const data = await res.json();
-          setQrCode(data.qr);
-          setOpenQRDialog(true);
-          setConnectionStatus('Aguardando escaneamento do QR Code...');
-          return;
+          if (data.qr) {
+            setQrCode(data.qr);
+            setOpenQRDialog(true);
+            setConnectionStatus('Aguardando QR');
+            setIsLoading(false); // Para o loading principal
+            return; // Sucesso, sai da função
+          }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("Falha ao buscar QR code, tentando novamente...", e);
+      }
       await new Promise(r => setTimeout(r, 2000));
       attempts++;
     }
-  }, []);
+    // Se o loop terminar sem sucesso
+    setError("Não foi possível obter o QR Code do servidor. Verifique se o backend está rodando e tente novamente.");
+    setConnectionStatus('Desconectado');
+    setIsLoading(false);
+  };
 
-  const checkConnectionStatus = useCallback(async () => {
-    if (!phoneNumber) return; // Adicionando uma verificação para evitar a chamada se o número não estiver presente
-    try {
-      const response = await fetch(API_ENDPOINTS.whatsapp.status(phoneNumber));
-      const data = await response.json();
-      if (data.status === 'connected') {
-        setConnectionStatus('Conectado');
-        setOpenQRDialog(false);
-        toast.success('WhatsApp conectado com sucesso!');
-      } else if (data.status === 'connecting') {
-        setConnectionStatus('Conectando...');
-      } else if (data.status === 'pending') {
-        setConnectionStatus('Aguardando escaneamento do QR Code...');
-      }
-    } catch (err) {
-      // Silenciar erro
-    }
-  }, [phoneNumber]);
-
+  // Inicia o processo de conexão
   const handleConnect = async () => {
     if (!phoneNumber) {
-      toast.error('Por favor, insira um número de telefone');
+      toast.error('Por favor, insira um número de telefone no formato 55619... ');
       return;
     }
 
     setIsLoading(true);
+    setQrCode(null);
     setError(null);
+    setConnectionStatus('Conectando...');
 
     try {
-      const response = await fetch(API_ENDPOINTS.whatsapp.connect, {
+      const response = await fetch(`${API_URL}/api/whatsapp/connect`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user?.id,
           deviceId: phoneNumber,
-          connectionName: connectionName || `WhatsApp ${phoneNumber}`,
+          connectionName: connectionName || `Conexão de ${phoneNumber}`,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Erro ao conectar');
+        throw new Error(data.error || 'Erro desconhecido ao iniciar conexão.');
       }
-
-      if (data.status === 'connected') {
-        setConnectionStatus('Conectado');
-        setOpenQRDialog(false);
-        toast.success('WhatsApp conectado com sucesso!');
-      } else {
-        setConnectionStatus('Conectando...');
-        pollQrCode(phoneNumber);
-        checkConnectionStatus();
-      }
+      
+      // Inicia a busca pelo QR Code após o comando de conexão ser aceito
+      await pollQrCode(phoneNumber);
+      
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao conectar');
-      toast.error('Erro ao conectar WhatsApp');
-    } finally {
+      const errorMessage = err instanceof Error ? err.message : 'Falha ao conectar. Verifique o console.';
+      setError(errorMessage);
+      toast.error(errorMessage);
+      setConnectionStatus('Desconectado');
       setIsLoading(false);
     }
   };
 
+  // Verifica periodicamente se a conexão foi estabelecida (após o QR ser lido)
+  const checkConnectionStatus = async () => {
+    if (!phoneNumber) return;
+    try {
+      const response = await fetch(`${API_URL}/api/whatsapp/status/${phoneNumber}`);
+      const data = await response.json();
+      if (data.status === 'connected') {
+        setConnectionStatus('Conectado');
+        setOpenQRDialog(false);
+        toast.success('WhatsApp conectado com sucesso!');
+      }
+    } catch (err) {
+        console.log("Verificação de status falhou, tentando novamente...");
+    }
+  };
+
+  // Efeito para rodar o checkConnectionStatus em intervalo
   useEffect(() => {
-    if (openQRDialog || connectionStatus === 'Conectando...') {
+    if (connectionStatus === 'Aguardando QR') {
       const interval = setInterval(checkConnectionStatus, 5000);
       return () => clearInterval(interval);
     }
-  }, [openQRDialog, connectionStatus, checkConnectionStatus]); // checkConnectionStatus adicionado como dependência
+  }, [connectionStatus, phoneNumber]);
 
   return (
-    <Box sx={{ minHeight: '100vh', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Box sx={{ width: '100%', maxWidth: 420, mx: 'auto', p: 4, background: '#fff', borderRadius: 4, boxShadow: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <QrCode2 sx={{ fontSize: 48, color: YELLOW, mb: 1 }} />
-        <Typography variant="h4" sx={{ fontWeight: 700, color: YELLOW_DARK, mb: 2, textAlign: 'center', letterSpacing: 1 }}>
-          Conectar WhatsApp
-        </Typography>
-        <Typography variant="body1" sx={{ color: '#444', mb: 3, textAlign: 'center' }}>
-          Insira o número do WhatsApp para conectar sua conta e enviar campanhas.
-        </Typography>
-        <TextField
-          fullWidth
-          label="Número do WhatsApp"
-          variant="outlined"
-          value={phoneNumber}
-          onChange={(e) => setPhoneNumber(e.target.value)}
-          placeholder="Ex: 556199999999"
-          sx={{ mb: 2, background: '#FFFDE7', borderRadius: 2 }}
-        />
-        <TextField
-          fullWidth
-          label="Nome da Conexão"
-          variant="outlined"
-          value={connectionName}
-          onChange={(e) => setConnectionName(e.target.value)}
-          placeholder="Ex: WhatsApp Comercial"
-          sx={{ mb: 2, background: '#FFFDE7', borderRadius: 2 }}
-        />
-        <Button
-          variant="contained"
-          onClick={handleConnect}
-          disabled={isLoading}
-          fullWidth
-          sx={{
-            background: YELLOW,
-            color: '#222',
-            fontWeight: 700,
-            fontSize: 18,
-            py: 1.5,
-            borderRadius: 2,
-            boxShadow: '0 2px 8px 0 #FFD60033',
-            '&:hover': { background: YELLOW_DARK }
-          }}
-        >
-          {isLoading ? <CircularProgress size={24} sx={{ color: YELLOW_DARK }} /> : 'Conectar WhatsApp'}
-        </Button>
-        {error && (
-          <Box sx={{ mt: 2, width: '100%', display: 'flex', alignItems: 'center', color: '#D32F2F', background: '#FFF3E0', borderRadius: 2, p: 1.5 }}>
-            <ErrorOutline sx={{ mr: 1 }} />
-            <Typography variant="body2">{error}</Typography>
-          </Box>
-        )}
-        <Box sx={{ mt: 3, width: '100%' }}>
-          {connectionStatus === 'Conectado' && (
-            <Box sx={{ display: 'flex', alignItems: 'center', color: '#388E3C', background: '#F1F8E9', borderRadius: 2, p: 1.5, justifyContent: 'center' }}>
-              <CheckCircle sx={{ mr: 1 }} />
-              <Typography variant="body2">WhatsApp conectado com sucesso!</Typography>
-            </Box>
-          )}
-          {connectionStatus === 'Conectando...' && (
-            <Box sx={{ display: 'flex', alignItems: 'center', color: YELLOW_DARK, background: '#FFFDE7', borderRadius: 2, p: 1.5, justifyContent: 'center' }}>
-              <CircularProgress size={18} sx={{ color: YELLOW_DARK, mr: 1 }} />
-              <Typography variant="body2">Conectando ao WhatsApp...</Typography>
-            </Box>
-          )}
-        </Box>
-      </Box>
-      <Dialog 
-        open={openQRDialog} 
-        onClose={() => setOpenQRDialog(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 4,
-            border: `3px solid ${YELLOW}`,
-            background: '#fffde7',
-            boxShadow: '0 8px 32px 0 #FFD60055',
-            p: 2
-          }
-        }}
-      >
-        <DialogTitle sx={{ textAlign: 'center', color: YELLOW_DARK, fontWeight: 700, fontSize: 28, letterSpacing: 1 }}>
-          Escaneie o QR Code
-        </DialogTitle>
-        <DialogContent>
-          <Box className="flex flex-col items-center p-4" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            {qrCode && (
-              <Box sx={{ background: '#fff', p: 3, borderRadius: 3, boxShadow: 2, border: `2px solid ${YELLOW_DARK}` }}>
-                <QRCodeSVG
-                  value={qrCode}
-                  size={220}
-                  level="H"
-                  style={{ marginBottom: 12 }}
-                />
-              </Box>
+    <>
+      <div className="flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-surface p-8 rounded-2xl border border-border shadow-lg flex flex-col items-center">
+          <QrCode className="w-12 h-12 text-primary mb-2" />
+          <h1 className="text-2xl font-bold text-text-primary mb-2 text-center">Conectar WhatsApp</h1>
+          <p className="text-text-secondary mb-6 text-center text-sm">
+            Crie uma nova conexão para disparar suas campanhas.
+          </p>
+
+          <div className="w-full space-y-4 mb-6">
+            <div>
+              <label htmlFor="connectionName" className="block text-sm font-medium text-text-secondary mb-1">Nome da Conexão</label>
+              <input
+                id="connectionName"
+                type="text"
+                value={connectionName}
+                onChange={(e) => setConnectionName(e.target.value)}
+                placeholder="Ex: WhatsApp Comercial"
+                className="input"
+              />
+            </div>
+            <div>
+              <label htmlFor="phoneNumber" className="block text-sm font-medium text-text-secondary mb-1">Número do WhatsApp (com DDI e DDD)</label>
+              <input
+                id="phoneNumber"
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="Ex: 5561999999999"
+                className="input"
+              />
+            </div>
+          </div>
+          
+          <button
+            onClick={handleConnect}
+            disabled={isLoading || connectionStatus === 'Conectado'}
+            className="btn btn-primary w-full flex items-center justify-center"
+          >
+            {isLoading ? <Loader2 className="animate-spin" /> : 'Gerar QR Code'}
+          </button>
+
+          <div className="mt-4 w-full text-center h-10">
+            {error && (
+              <div className="flex items-center justify-center gap-2 text-red-400 bg-red-400/10 p-2 rounded-lg text-sm">
+                <AlertTriangle size={18} />
+                <span>{error}</span>
+              </div>
             )}
-            <Typography variant="body1" sx={{ color: '#444', mt: 3, textAlign: 'center' }}>
-              {connectionStatus}
-            </Typography>
-            <Typography variant="body2" sx={{ color: YELLOW_DARK, textAlign: 'center', mt: 1 }}>
-              Abra o WhatsApp no seu celular {'>'} Menu {'>'} Dispositivos conectados {'>'} Conectar um dispositivo
-            </Typography>
-          </Box>
-        </DialogContent>
-      </Dialog>
-    </Box>
+            {connectionStatus === 'Conectado' && (
+               <div className="flex items-center justify-center gap-2 text-green-400 bg-green-400/10 p-2 rounded-lg text-sm">
+                <CheckCircle size={18} />
+                <span>Conectado com sucesso!</span>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+      
+      {openQRDialog && (
+        <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-surface p-8 rounded-2xl border border-border shadow-lg flex flex-col items-center relative max-w-sm w-full">
+             <button 
+                onClick={() => setOpenQRDialog(false)} 
+                className="absolute top-4 right-4 text-text-secondary hover:text-text-primary transition-colors"
+             >
+                <X size={24} />
+             </button>
+            <h2 className="text-xl font-bold text-text-primary mb-2">Escaneie para Conectar</h2>
+            <p className="text-text-secondary mb-6 text-center text-sm">Abra o WhatsApp no seu celular e conecte um novo aparelho.</p>
+
+            <div className="bg-white p-4 rounded-lg border-2 border-primary">
+              {qrCode ? (
+                <QRCodeSVG value={qrCode} size={256} level="H" />
+              ) : (
+                <div className="w-[256px] h-[256px] flex items-center justify-center">
+                    <Loader2 className="animate-spin w-16 h-16 text-primary"/>
+                </div>
+              )}
+            </div>
+            <p className="mt-4 text-text-secondary text-sm">{connectionStatus === 'Aguardando QR' ? "Aguardando leitura do QR Code..." : connectionStatus}</p>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
