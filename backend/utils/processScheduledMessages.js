@@ -1,5 +1,4 @@
 import { supabase } from "../supabase-backend.js";
-// Importa a função de envio do nosso serviço!
 import { sendMessage } from "../src/services/whatsappService.js"; 
 import { getCurrentDateTime } from "./getCurrentDateTime.js";
 
@@ -15,7 +14,7 @@ export async function processScheduledMessages() {
   const { data: messages, error: fetchError } = await supabase
     .from("mensagem_evolution")
     .select("*")
-    .in("status", ["Scheduled", "Rascunho"]); // Busca agendadas ou rascunhos
+    .in("status", ["Scheduled", "Rascunho"]);
 
   if (fetchError) {
     console.error(`[WORKER] Erro ao buscar campanhas:`, fetchError);
@@ -31,7 +30,6 @@ export async function processScheduledMessages() {
     try {
       console.log(`[WORKER] ➤ Processando Campanha ${msg.id} (${msg.name})`);
 
-      // Atualiza o status da campanha para "Em Andamento"
       await supabase.from("mensagem_evolution").update({ status: 'Em Andamento' }).eq("id", msg.id);
 
       const { data: contatosData, error: contatosError } = await supabase
@@ -53,19 +51,17 @@ export async function processScheduledMessages() {
       
       let successCount = 0;
       let errorCount = 0;
-      const delaySec = Math.max(1, parseInt(msg.delay) || 5); // Delay padrão de 5s
+      const delaySec = Math.max(1, parseInt(msg.delay) || 5);
 
       for (const [index, contato] of contatos.entries()) {
         const numero = normalizeNumber(contato.phone);
         
-        // Pausa entre os envios
         if (index > 0) {
           await new Promise((res) => setTimeout(res, delaySec * 1000));
         }
 
         console.log(`[WORKER] Enviando para ${numero} via device ${msg.device_id}`);
         
-        // USA A FUNÇÃO CENTRALIZADA!
         const result = await sendMessage(
           msg.device_id,
           numero,

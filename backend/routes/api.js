@@ -1,5 +1,4 @@
 import express from 'express';
-// Importa as funções do nosso novo serviço centralizado
 import { startConnection, sendMessage, connections, qrCodes } from '../src/services/whatsappService.js';
 import { rimraf } from "rimraf";
 import path from "path";
@@ -37,32 +36,25 @@ router.get("/whatsapp/qr/:deviceId", (req, res) => {
   return res.status(404).json({ error: "QR code não encontrado ou conexão já estabelecida." });
 });
 
-// ROTA CORRIGIDA: Adicionada de volta
 router.get("/whatsapp/status/:deviceId", (req, res) => {
   try {
     const { deviceId } = req.params;
     if (!deviceId) {
       return res.status(400).json({ error: "ID do dispositivo não fornecido" });
     }
-
     const connection = connections.get(deviceId);
     if (!connection) {
       return res.status(404).json({ status: "disconnected", message: "Conexão não encontrada" });
     }
-
     return res.status(200).json({
       status: connection.status,
       deviceId: connection.deviceId,
     });
   } catch (error) {
     console.error("Erro ao verificar status:", error);
-    return res.status(500).json({
-      error: "Erro ao verificar status da conexão",
-      details: error.message,
-    });
+    return res.status(500).json({ error: "Erro ao verificar status da conexão" });
   }
 });
-
 
 router.get("/whatsapp/devices", (req, res) => {
     const devices = Array.from(connections.values()).map(conn => ({
@@ -77,14 +69,12 @@ router.delete("/whatsapp/devices/:deviceId/auth", (req, res) => {
     const { deviceId } = req.params;
     const connection = connections.get(deviceId);
     
-    // Tenta desconectar o cliente se ele estiver ativo
     if (connection && connection.client) {
         connection.client.logout();
     }
     connections.delete(deviceId);
     qrCodes.delete(deviceId);
 
-    // Limpa a pasta de autenticação
     const authFolder = path.join(__dirname, "..", "..", "auth", deviceId);
     if (fs.existsSync(authFolder)) {
         rimraf.sync(authFolder);
@@ -93,7 +83,6 @@ router.delete("/whatsapp/devices/:deviceId/auth", (req, res) => {
     res.status(200).json({ message: "Conexão e dados de autenticação removidos." });
 });
 
-// A rota de envio agora usa diretamente a função do serviço
 router.post("/whatsapp/send", async (req, res) => {
     const { deviceId, number, message, imagemUrl } = req.body;
     const result = await sendMessage(deviceId, number, message, imagemUrl);

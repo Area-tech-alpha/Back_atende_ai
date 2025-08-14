@@ -7,6 +7,7 @@ import qrcode from "qrcode";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import { rimraf } from "rimraf";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,22 +54,27 @@ export async function startConnection(deviceId, connectionName) {
       qrCodes.set(deviceId, qr);
     }
     if (connection === "close") {
-      const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log(`[SERVICE] Conexão fechada para ${deviceId}. Motivo: ${lastDisconnect.error}. Reconectar: ${shouldReconnect}`);
-      connections.delete(deviceId);
-      qrCodes.delete(deviceId);
-      if (shouldReconnect) {
-        // Opcional: Adicionar lógica de reconexão automática aqui
-      } else {
-         try {
-            if (fs.existsSync(authFolder)) {
-              fs.rmSync(authFolder, { recursive: true, force: true });
-              console.log(`[SERVICE] Pasta de autenticação removida para ${deviceId} devido a logout.`);
-            }
-          } catch (error) {
-            console.error(`[SERVICE] Erro ao limpar pasta de autenticação:`, error);
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      
+      console.log(`[SERVICE] Conexão fechada para ${deviceId}. Motivo: ${lastDisconnect?.error?.message}. Reconectar: ${shouldReconnect}`);
+      
+      // Se o erro for 'restart required' ou 'logged out', limpa a sessão para forçar um novo QR code.
+      if (statusCode === DisconnectReason.restartRequired || !shouldReconnect) {
+          console.log(`[SERVICE] Limpando sessão de ${deviceId} para forçar nova autenticação.`);
+          if (connections.has(deviceId)) {
+              connections.get(deviceId).client?.logout();
+          }
+          connections.delete(deviceId);
+          qrCodes.delete(deviceId);
+          const authFolder = path.join(__dirname, "..", "..", "auth", deviceId);
+          if (fs.existsSync(authFolder)) {
+              rimraf.sync(authFolder);
           }
       }
+      
+      connections.delete(deviceId);
+
     } else if (connection === "open") {
       console.log(`[SERVICE] Conexão aberta e estabelecida para ${deviceId}`);
       connections.set(deviceId, { client, status: "connected", deviceId, connection_name: connectionName });
@@ -93,8 +99,7 @@ export async function sendMessage(deviceId, number, message, imageUrl = null) {
     try {
         const jid = formatPhoneNumber(number);
         
-        // Verifica se o número existe no WhatsApp
-        const [result] = await connection.client.onWhatsApp(jid);
+        const [result] = await connection.client.onWhatsApp(jid.split('@')[0]);
         if (!result?.exists) {
             return { success: false, error: "Número não existe no WhatsApp." };
         }
