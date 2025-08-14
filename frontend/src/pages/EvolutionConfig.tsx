@@ -137,7 +137,7 @@ const Evolution: React.FC = () => {
               {evolutions.map(evo => (
                 <div
                   key={evo.id}
-                  className="p-4 bg-primary/5 rounded-xl border border-primary/10 hover:border-primary/20 transition-colors duration-200"
+                 className="p-4 bg-secondary-dark rounded-xl border border-secondary-darker  hover:border-primary/20 transition-colors duration-200"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-display font-bold text-accent">
@@ -149,7 +149,7 @@ const Evolution: React.FC = () => {
                   </div>
                   <div className="flex items-center space-x-2 text-sm">
                     <span className="text-accent/60">API Key:</span>
-                    <code className="px-2 py-1 bg-accent/5 rounded text-accent/80 font-mono">
+                    <code className="px-2 py-1 bg-secondary-darker rounded text-accent/80 font-mono">
                       {evo.apikey}
                     </code>
                   </div>

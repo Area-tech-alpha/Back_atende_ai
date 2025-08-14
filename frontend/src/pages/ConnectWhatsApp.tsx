@@ -116,16 +116,16 @@ const ConnectWhatsApp: React.FC = () => {
   return (
     <>
       <div className="flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-surface p-8 rounded-2xl border border-border shadow-lg flex flex-col items-center">
+        <div className="w-full max-w-md bg-secondary p-8 rounded-2xl border border-secondary-dark shadow-soft flex flex-col items-center">
           <QrCode className="w-12 h-12 text-primary mb-2" />
-          <h1 className="text-2xl font-bold text-text-primary mb-2 text-center">Conectar WhatsApp</h1>
-          <p className="text-text-secondary mb-6 text-center text-sm">
+          <h1 className="text-2xl font-bold text-accent mb-2 text-center">Conectar WhatsApp</h1>
+          <p className="text-accent/60 mb-6 text-center text-sm">
             Crie uma nova conexão para disparar suas campanhas.
           </p>
 
           <div className="w-full space-y-4 mb-6">
             <div>
-              <label htmlFor="connectionName" className="block text-sm font-medium text-text-secondary mb-1">Nome da Conexão</label>
+              <label htmlFor="connectionName"className="block text-sm font-medium text-accent mb-1">Nome da Conexão</label>
               <input
                 id="connectionName"
                 type="text"
@@ -136,7 +136,7 @@ const ConnectWhatsApp: React.FC = () => {
               />
             </div>
             <div>
-              <label htmlFor="phoneNumber" className="block text-sm font-medium text-text-secondary mb-1">Número do WhatsApp (com DDI e DDD)</label>
+              <label htmlFor="phoneNumber" className="block text-sm font-medium text-accentmb-1">Número do WhatsApp (com DDI e DDD)</label>
               <input
                 id="phoneNumber"
                 type="tel"
@@ -175,16 +175,16 @@ const ConnectWhatsApp: React.FC = () => {
       </div>
       
       {openQRDialog && (
-        <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className="bg-surface p-8 rounded-2xl border border-border shadow-lg flex flex-col items-center relative max-w-sm w-full">
+        <div className="fixed inset-0 bg-accent/75 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="card p-8 relative">
              <button 
                 onClick={() => setOpenQRDialog(false)} 
-                className="absolute top-4 right-4 text-text-secondary hover:text-text-primary transition-colors"
+              className="absolute top-4 right-4 text-accent/60  hover:text-text-primary transition-colors"
              >
                 <X size={24} />
              </button>
             <h2 className="text-xl font-bold text-text-primary mb-2">Escaneie para Conectar</h2>
-            <p className="text-text-secondary mb-6 text-center text-sm">Abra o WhatsApp no seu celular e conecte um novo aparelho.</p>
+            <p className="text-accent/60 mb-6 text-center text-sm">Abra o WhatsApp no seu celular e conecte um novo aparelho.</p>
 
             <div className="bg-white p-4 rounded-lg border-2 border-primary">
               {qrCode ? (

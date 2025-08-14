@@ -7,20 +7,29 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Paleta Semântica para Dark Mode
-        'background': '#18181b', // Cor de fundo principal (Zinc 950)
-        'surface': '#27272a',    // Cor para cards, sidebars, etc. (Zinc 900)
-        'muted': '#3f3f46',      // Para hovers e elementos interativos sutis (Zinc 800)
-        'border': '#52525b',     // Para bordas (Zinc 700)
-
-        'text-primary': '#fafafa',   // Texto principal, títulos (Zinc 50)
-        'text-secondary': '#a1a1aa', // Texto secundário, parágrafos (Zinc 400)
-        
-        // Cor de Destaque (Accent)
+        // --- SEU TEMA CLARO (BRANCO E AMARELO) ---
         primary: {
-          DEFAULT: '#EAB308', // Amarelo (Yellow 500) - Um pouco mais rico que o anterior
-          dark: '#CA8A04',   // Para hovers no botão principal (Yellow 600)
+          DEFAULT: '#FFD700', // Amarelo principal
+          light: '#FFE44D',
+          dark: '#FFC107',
         },
+        secondary: {
+          DEFAULT: '#FFFFFF', // Branco principal
+          dark: '#F5F5F5',
+          darker: '#E0E0E0',
+        },
+        accent: {
+          DEFAULT: '#1A1A1A', // Preto para contraste
+          light: '#2D2D2D',
+        },
+        
+        // --- VARIÁVEIS PARA O FUTURO DARK MODE ---
+        'background': '#18181b',
+        'surface': '#27272a',
+        'muted': '#3f3f46',
+        'border': '#52525b',
+        'text-primary': '#fafafa',
+        'text-secondary': '#a1a1aa',
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
@@ -28,7 +37,7 @@ export default {
       },
       boxShadow: {
         'soft': '0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04)',
-        // Sombra com a cor primária para um efeito de brilho
+        'glow': '0 0 15px rgba(255, 215, 0, 0.3)',
         'glow-primary': '0 0 15px rgba(234, 179, 8, 0.3)',
       },
       animation: {

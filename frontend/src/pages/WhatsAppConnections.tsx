@@ -1,16 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { API_ENDPOINTS } from '../config/api';
-import { MoreVertical } from 'lucide-react';
+import { MoreVertical, Wifi, WifiOff, Loader2, Trash2 } from 'lucide-react';
+import { toast } from 'react-toastify';
 
+// Interface atualizada para corresponder à resposta do backend
 interface WhatsAppConnection {
-  id: string;
-  phone_number: string;
+  deviceId: string;
   connection_name: string;
-  status: 'connected' | 'disconnected' | 'pending';
-  last_connected_at: string;
-  created_at: string;
-  deviceId?: string;
+  status: 'connected' | 'connecting' | 'disconnected' | 'pending';
 }
 
 const WhatsAppConnections: React.FC = () => {
@@ -20,16 +17,24 @@ const WhatsAppConnections: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
+  // Pega a URL da API das variáveis de ambiente
+  const API_URL = import.meta.env.VITE_API_URL;
+
   const fetchConnections = async () => {
+    if (!user) return;
     try {
-      const response = await fetch(API_ENDPOINTS.whatsapp.devices);
+      // Constrói a URL completa e passa o userId como query param
+      const response = await fetch(`${API_URL}/api/whatsapp/devices?userId=${user.id}`);
       if (!response.ok) {
-        throw new Error('Erro ao buscar conexões');
+        throw new Error('Falha ao buscar conexões do servidor.');
       }
       const data = await response.json();
-      setConnections(data.devices);
+      // A resposta do backend está aninhada em um objeto 'devices'
+      setConnections(data.devices || []);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Erro ao buscar conexões');
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
+      setError(errorMessage);
+      console.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -37,114 +42,96 @@ const WhatsAppConnections: React.FC = () => {
 
   useEffect(() => {
     fetchConnections();
-    // Atualizar a cada 30 segundos
+    // Atualiza a lista a cada 30 segundos
     const interval = setInterval(fetchConnections, 30000);
     return () => clearInterval(interval);
-  }, [user?.id]);
+  }, [user]); // Adicionado user como dependência
 
-  const getStatusColor = (status: string) => {
+  const getStatusInfo = (status: string) => {
     switch (status) {
       case 'connected':
-        return 'text-green-500';
-      case 'disconnected':
-        return 'text-red-500';
+        return { color: 'text-green-500', text: 'Conectado', icon: <Wifi size={16} /> };
+      case 'connecting':
       case 'pending':
-        return 'text-yellow-500';
+        return { color: 'text-yellow-500', text: 'Conectando...', icon: <Loader2 size={16} className="animate-spin" /> };
       default:
-        return 'text-gray-500';
+        return { color: 'text-red-500', text: 'Desconectado', icon: <WifiOff size={16} /> };
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'connected':
-        return 'Conectado';
-      case 'disconnected':
-        return 'Desconectado';
-      case 'pending':
-        return 'Aguardando conexão';
-      default:
-        return status;
-    }
-  };
-
-  // Função para excluir/desconectar conexão
   const handleDeleteConnection = async (deviceId: string) => {
-    if (!window.confirm('Tem certeza que deseja excluir esta conexão?')) return;
+    if (!window.confirm('Tem certeza? Isso removerá os dados de autenticação e desconectará o aparelho.')) return;
+    
     try {
-      const response = await fetch(`/api/whatsapp/session/${deviceId}`, { method: 'DELETE' });
+      // URL completa para a rota de exclusão de autenticação
+      const response = await fetch(`${API_URL}/api/whatsapp/devices/${deviceId}/auth`, { 
+        method: 'DELETE' 
+      });
       if (!response.ok) throw new Error('Erro ao excluir conexão');
-      fetchConnections();
+      
+      toast.success("Conexão excluída com sucesso!");
+      fetchConnections(); // Atualiza a lista
     } catch (err) {
-      alert('Erro ao excluir conexão');
-    }
-  };
-
-  const handleDisconnectConnection = async (deviceId: string) => {
-    try {
-      const response = await fetch(`/api/whatsapp/session/${deviceId}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Erro ao desconectar');
-      fetchConnections();
-    } catch (err) {
-      alert('Erro ao desconectar');
+      toast.error('Não foi possível excluir a conexão.');
+    } finally {
+      setOpenMenuId(null);
     }
   };
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Conexões WhatsApp</h1>
+      <h1 className="text-2xl font-bold mb-6 text-accent">Conexões WhatsApp</h1>
 
       <div className="bg-secondary rounded-xl p-6 shadow-soft border border-secondary-dark">
         {loading ? (
           <div className="flex justify-center items-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <Loader2 className="w-8 h-8 text-primary animate-spin" />
           </div>
         ) : error ? (
-          <div className="text-primary text-center py-4">{error}</div>
+          <div className="text-red-600 text-center py-4">{error}</div>
         ) : connections.length === 0 ? (
           <div className="text-accent/80 text-center py-4">
-            Nenhuma conexão encontrada
+            Nenhuma conexão encontrada. Adicione uma na tela "Conectar WhatsApp".
           </div>
         ) : (
-          <div className="space-y-4">
-            {connections.map((connection) => (
-              <div
-                key={connection.deviceId || connection.id}
-                className="bg-secondary-dark rounded-lg p-4 flex items-center justify-between"
-              >
-                <div>
-                  <h3 className="font-medium text-accent text-lg">{connection.connection_name || 'Sem nome'}</h3>
-                  <p className="text-accent/60 text-sm">{connection.deviceId || connection.id}</p>
+          <div className="space-y-3">
+            {connections.map((connection) => {
+              const statusInfo = getStatusInfo(connection.status);
+              return (
+                <div
+                  key={connection.deviceId}
+                  className="bg-secondary-dark rounded-lg p-4 flex items-center justify-between"
+                >
+                  <div>
+                    <h3 className="font-medium text-accent text-lg">{connection.connection_name || 'Conexão Sem Nome'}</h3>
+                    <p className="text-accent/60 text-sm">{connection.deviceId}</p>
+                  </div>
+                  <div className="flex items-center gap-4 relative">
+                    <span className={`flex items-center gap-2 text-sm font-medium ${statusInfo.color}`}>
+                      {statusInfo.icon}
+                      {statusInfo.text}
+                    </span>
+                    <button
+                      className="p-1 rounded-full text-accent/70 hover:bg-secondary-darker"
+                      onClick={() => setOpenMenuId(openMenuId === connection.deviceId ? null : connection.deviceId)}
+                    >
+                      <MoreVertical size={20} />
+                    </button>
+                    {openMenuId === connection.deviceId && (
+                      <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-md shadow-lg z-10 w-40">
+                        <button
+                          className="flex items-center gap-3 w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
+                          onClick={() => handleDeleteConnection(connection.deviceId)}
+                        >
+                          <Trash2 size={16} />
+                          <span>Excluir</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center space-x-4 relative">
-                  <span className={`${getStatusColor(connection.status)} font-medium`}>
-                    {getStatusText(connection.status)}
-                  </span>
-                  <button
-                    className="ml-2 p-1 rounded-full hover:bg-gray-200 transition"
-                    onClick={() => setOpenMenuId(openMenuId === (connection.deviceId || connection.id) ? null : (connection.deviceId || connection.id))}
-                  >
-                    <MoreVertical size={22} />
-                  </button>
-                  {openMenuId === (connection.deviceId || connection.id) && (
-                    <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded shadow-lg z-10 min-w-[120px]">
-                      <button
-                        className="block w-full text-left px-4 py-2 text-yellow-700 hover:bg-yellow-50"
-                        onClick={() => { setOpenMenuId(null); handleDisconnectConnection(connection.deviceId || connection.id); }}
-                      >
-                        Desconectar
-                      </button>
-                      <button
-                        className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
-                        onClick={() => { setOpenMenuId(null); handleDeleteConnection(connection.deviceId || connection.id); }}
-                      >
-                        Excluir
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -152,4 +139,4 @@ const WhatsAppConnections: React.FC = () => {
   );
 };
 
-export default WhatsAppConnections; 
+export default WhatsAppConnections;

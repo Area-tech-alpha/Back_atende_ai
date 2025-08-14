@@ -1,0 +1,42 @@
+# Nome do seu workflow, que aparecerá na aba "Actions" do GitHub
+name: Processar Mensagens Agendadas
+
+on:
+  # Define a agenda de execução
+  schedule:
+    # Executa a cada 5 minutos. Você pode ajustar este valor.
+    - cron: '*/5 * * * *'
+  
+  # Permite que você execute este workflow manualmente a partir da aba "Actions"
+  workflow_dispatch:
+
+jobs:
+  # Nome do "trabalho" a ser executado
+  run-worker:
+    # Usa a versão mais recente do Ubuntu como ambiente
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Baixa o código do seu repositório para o ambiente de execução
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      # 2. Configura a versão do Node.js que seu projeto usa
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 3. Instala as dependências do backend
+      - name: Instalar dependências do Backend
+        run: npm install
+        working-directory: ./backend # IMPORTANTE: Executa o comando dentro da pasta do backend
+
+      # 4. Executa o seu script do worker
+      - name: Executar o Worker de Mensagens
+        run: npm run start:worker
+        working-directory: ./backend # IMPORTANTE: Executa o comando dentro da pasta do backend
+        env:
+          # Usa os "Secrets" que vamos configurar no próximo passo
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
