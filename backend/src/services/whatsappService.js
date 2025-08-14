@@ -55,25 +55,24 @@ export async function startConnection(deviceId, connectionName) {
     }
     if (connection === "close") {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut && statusCode !== DisconnectReason.restartRequired;
       
       console.log(`[SERVICE] Conexão fechada para ${deviceId}. Motivo: ${lastDisconnect?.error?.message}. Reconectar: ${shouldReconnect}`);
       
-      // Se o erro for 'restart required' ou 'logged out', limpa a sessão para forçar um novo QR code.
-      if (statusCode === DisconnectReason.restartRequired || !shouldReconnect) {
+      // Se o erro for de logout ou exigir reinicialização, limpa a sessão para forçar um novo QR code.
+      if (!shouldReconnect) {
           console.log(`[SERVICE] Limpando sessão de ${deviceId} para forçar nova autenticação.`);
-          if (connections.has(deviceId)) {
-              connections.get(deviceId).client?.logout();
-          }
+          // A LINHA PROBLEMÁTICA FOI REMOVIDA DAQUI. Não tentamos mais o logout.
           connections.delete(deviceId);
           qrCodes.delete(deviceId);
           const authFolder = path.join(__dirname, "..", "..", "auth", deviceId);
           if (fs.existsSync(authFolder)) {
               rimraf.sync(authFolder);
           }
+      } else {
+        // Para outras falhas, apenas removemos da memória para uma possível reconexão futura.
+        connections.delete(deviceId);
       }
-      
-      connections.delete(deviceId);
 
     } else if (connection === "open") {
       console.log(`[SERVICE] Conexão aberta e estabelecida para ${deviceId}`);
