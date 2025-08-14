@@ -8,6 +8,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { rimraf } from "rimraf";
+import pino from "pino";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,10 +35,14 @@ export async function startConnection(deviceId, connectionName) {
 
   const { state, saveCreds } = await useMultiFileAuthState(authFolder);
 
+  // Adiciona um logger mais detalhado para ajudar a depurar
+  const logger = pino({ level: 'silent' });
+
   const client = makeWASocket({
     auth: state,
     browser: ["Atende AI", "Chrome", "1.0.0"],
     printQRInTerminal: false,
+    logger,
   });
 
   connections.set(deviceId, {
@@ -55,14 +60,18 @@ export async function startConnection(deviceId, connectionName) {
     }
     if (connection === "close") {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut && statusCode !== DisconnectReason.restartRequired;
-      
+      // Define que não deve reconectar se for logout, conflito ou reinicialização necessária
+      const shouldReconnect = 
+        statusCode !== DisconnectReason.loggedOut && 
+        statusCode !== DisconnectReason.restartRequired &&
+        statusCode !== 409; // 409 é o código para conflito (device_removed)
+
       console.log(`[SERVICE] Conexão fechada para ${deviceId}. Motivo: ${lastDisconnect?.error?.message}. Reconectar: ${shouldReconnect}`);
       
-      // Se o erro for de logout ou exigir reinicialização, limpa a sessão para forçar um novo QR code.
+      // Se a desconexão for definitiva (logout, conflito, etc.), limpa a sessão.
       if (!shouldReconnect) {
           console.log(`[SERVICE] Limpando sessão de ${deviceId} para forçar nova autenticação.`);
-          // A LINHA PROBLEMÁTICA FOI REMOVIDA DAQUI. Não tentamos mais o logout.
+          // Apenas limpa os arquivos locais. Não tenta mais fazer logout de uma conexão já fechada.
           connections.delete(deviceId);
           qrCodes.delete(deviceId);
           const authFolder = path.join(__dirname, "..", "..", "auth", deviceId);
