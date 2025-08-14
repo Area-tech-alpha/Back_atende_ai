@@ -3,14 +3,13 @@ import {
   DisconnectReason,
   makeWASocket,
   isJidBroadcast,
-  fetchLatestBaileysVersion, // <-- IMPORTADO
+  fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import qrcode from "qrcode";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { rimraf } from "rimraf";
-import pino from "pino";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,9 +34,6 @@ export async function startConnection(deviceId, connectionName) {
   }
 
   const { state, saveCreds } = await useMultiFileAuthState(authFolder);
-  const logger = pino({ level: "silent" });
-
-  // ATUALIZAÇÃO: Busca a última versão estável do WhatsApp Web
   const { version, isLatest } = await fetchLatestBaileysVersion();
   console.log(
     `[SERVICE] Usando a versão do Baileys: ${version.join(
@@ -46,12 +42,12 @@ export async function startConnection(deviceId, connectionName) {
   );
 
   const client = makeWASocket({
-    // Passa a versão para o socket
     version,
     auth: state,
-    browser: ["Atende AI", "Chrome", "1.0.0"],
+
+    browser: ["Chrome (Linux)", "", ""],
     printQRInTerminal: false,
-    logger,
+
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
     retryRequestDelayMs: 250,
@@ -99,6 +95,9 @@ export async function startConnection(deviceId, connectionName) {
           rimraf.sync(authFolder);
         }
       } else {
+        console.log(
+          `[SERVICE] Tentativa de reconexão para ${deviceId} pode ser implementada aqui.`
+        );
         connections.delete(deviceId);
       }
     } else if (connection === "open") {
