@@ -3,6 +3,7 @@ import {
   DisconnectReason,
   makeWASocket,
   isJidBroadcast,
+  fetchLatestBaileysVersion, // <-- IMPORTADO
 } from "@whiskeysockets/baileys";
 import qrcode from "qrcode";
 import path from "path";
@@ -36,12 +37,21 @@ export async function startConnection(deviceId, connectionName) {
   const { state, saveCreds } = await useMultiFileAuthState(authFolder);
   const logger = pino({ level: "silent" });
 
+  // ATUALIZAÇÃO: Busca a última versão estável do WhatsApp Web
+  const { version, isLatest } = await fetchLatestBaileysVersion();
+  console.log(
+    `[SERVICE] Usando a versão do Baileys: ${version.join(
+      "."
+    )}, é a mais recente: ${isLatest}`
+  );
+
   const client = makeWASocket({
+    // Passa a versão para o socket
+    version,
     auth: state,
     browser: ["Atende AI", "Chrome", "1.0.0"],
     printQRInTerminal: false,
     logger,
-    // --- Configurações do backup para estabilidade ---
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
     retryRequestDelayMs: 250,
