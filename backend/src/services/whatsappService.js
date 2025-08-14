@@ -3,7 +3,6 @@ import {
   DisconnectReason,
   makeWASocket,
   isJidBroadcast,
-  fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import qrcode from "qrcode";
 import path from "path";
@@ -34,20 +33,12 @@ export async function startConnection(deviceId, connectionName) {
   }
 
   const { state, saveCreds } = await useMultiFileAuthState(authFolder);
-  const { version, isLatest } = await fetchLatestBaileysVersion();
-  console.log(
-    `[SERVICE] Usando a versão do Baileys: ${version.join(
-      "."
-    )}, é a mais recente: ${isLatest}`
-  );
 
+  // ATUALIZAÇÃO FINAL: Configuração 100% idêntica à do backup, sem forçar a versão.
   const client = makeWASocket({
-    version,
     auth: state,
-
     browser: ["Chrome (Linux)", "", ""],
     printQRInTerminal: false,
-
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
     retryRequestDelayMs: 250,
@@ -78,7 +69,7 @@ export async function startConnection(deviceId, connectionName) {
       const shouldReconnect =
         statusCode !== DisconnectReason.loggedOut &&
         statusCode !== DisconnectReason.restartRequired &&
-        statusCode !== 409;
+        statusCode !== 409; // Conflito
 
       console.log(
         `[SERVICE] Conexão fechada para ${deviceId}. Motivo: ${lastDisconnect?.error?.message}. Reconectar: ${shouldReconnect}`
