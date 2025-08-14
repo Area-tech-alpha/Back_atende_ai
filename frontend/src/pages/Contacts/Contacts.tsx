@@ -25,7 +25,6 @@ const ContactsPage: React.FC = () => {
   const [modalType, setModalType] = useState<'add' | 'import' | 'export' | null>(null);
   const [newContact, setNewContact] = useState({ name: '', phone: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importListName, setImportListName] = useState('');
@@ -187,7 +186,6 @@ const ContactsPage: React.FC = () => {
     setImportListName('');
     setCsvFileName('');
     setExportListId(null);
-    setError('');
   };
 
   if (loading) {
