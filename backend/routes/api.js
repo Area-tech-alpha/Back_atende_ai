@@ -37,6 +37,33 @@ router.get("/whatsapp/qr/:deviceId", (req, res) => {
   return res.status(404).json({ error: "QR code não encontrado ou conexão já estabelecida." });
 });
 
+// ROTA CORRIGIDA: Adicionada de volta
+router.get("/whatsapp/status/:deviceId", (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    if (!deviceId) {
+      return res.status(400).json({ error: "ID do dispositivo não fornecido" });
+    }
+
+    const connection = connections.get(deviceId);
+    if (!connection) {
+      return res.status(404).json({ status: "disconnected", message: "Conexão não encontrada" });
+    }
+
+    return res.status(200).json({
+      status: connection.status,
+      deviceId: connection.deviceId,
+    });
+  } catch (error) {
+    console.error("Erro ao verificar status:", error);
+    return res.status(500).json({
+      error: "Erro ao verificar status da conexão",
+      details: error.message,
+    });
+  }
+});
+
+
 router.get("/whatsapp/devices", (req, res) => {
     const devices = Array.from(connections.values()).map(conn => ({
         deviceId: conn.deviceId,
