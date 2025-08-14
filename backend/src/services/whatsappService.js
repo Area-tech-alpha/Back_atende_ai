@@ -2,7 +2,7 @@ import {
   useMultiFileAuthState,
   DisconnectReason,
   makeWASocket,
-  isJidBroadcast, // Importação adicionada
+  isJidBroadcast,
 } from "@whiskeysockets/baileys";
 import qrcode from "qrcode";
 import path from "path";
@@ -36,7 +36,6 @@ export async function startConnection(deviceId, connectionName) {
   const { state, saveCreds } = await useMultiFileAuthState(authFolder);
   const logger = pino({ level: "silent" });
 
-  // ATUALIZADO: Adicionadas todas as configurações do seu backup
   const client = makeWASocket({
     auth: state,
     browser: ["Atende AI", "Chrome", "1.0.0"],
@@ -52,6 +51,7 @@ export async function startConnection(deviceId, connectionName) {
     shouldIgnoreJid: (jid) => isJidBroadcast(jid),
     emitOwnEvents: false,
     generateHighQualityLinkPreview: false,
+    deviceId: deviceId,
   });
 
   connections.set(deviceId, {
