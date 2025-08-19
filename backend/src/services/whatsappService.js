@@ -4,7 +4,7 @@ import {
   isJidBroadcast,
   fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
-import { useSupabaseAuthState } from "../utils/useSupabaseAuthState.js"; // <-- Importa nosso novo utilitário
+import { useSupabaseAuthState } from '../../utils/useSupabaseAuthState.js';
 import { createClient } from "@supabase/supabase-js";
 import qrcode from "qrcode";
 import pino from "pino";
