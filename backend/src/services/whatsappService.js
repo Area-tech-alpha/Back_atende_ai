@@ -3,8 +3,9 @@ import {
   DisconnectReason,
   isJidBroadcast,
   fetchLatestBaileysVersion,
+  makeCacheableSignalKeyStore, 
 } from "@whiskeysockets/baileys";
-import { useSupabaseAuthState } from '../../utils/useSupabaseAuthState.js';
+import { useSupabaseAuthState } from "../utils/useSupabaseAuthState.js";
 import { createClient } from "@supabase/supabase-js";
 import qrcode from "qrcode";
 import pino from "pino";
@@ -12,7 +13,6 @@ import pino from "pino";
 export const connections = new Map();
 export const qrCodes = new Map();
 
-// Configuração do cliente Supabase (usará as variáveis de ambiente)
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -29,7 +29,6 @@ function formatPhoneNumber(phone) {
 export async function startConnection(deviceId, connectionName) {
   console.log(`[SERVICE] Iniciando conexão para: ${deviceId}`);
 
-  // MUDANÇA PRINCIPAL: Usando o Supabase para gerenciar a autenticação.
   const { state, saveCreds, clearState } = await useSupabaseAuthState(
     supabase,
     deviceId
@@ -38,12 +37,17 @@ export async function startConnection(deviceId, connectionName) {
   const { version } = await fetchLatestBaileysVersion();
   console.log(`[SERVICE] Usando a versão do Baileys: ${version.join(".")}`);
 
+  const logger = pino({ level: "silent" });
+
   const client = makeWASocket({
     version,
-    auth: state, // <-- A MUDANÇA MAIS IMPORTANTE
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, logger),
+    },
     browser: ["Chrome (Linux)", "", ""],
     printQRInTerminal: false,
-    logger: pino({ level: "silent" }),
+    logger: logger,
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
     retryRequestDelayMs: 250,
@@ -81,7 +85,7 @@ export async function startConnection(deviceId, connectionName) {
         console.log(
           `[SERVICE] Desconexão definitiva. Limpando sessão de ${deviceId} do Supabase.`
         );
-        clearState(); // <-- Limpa a sessão no banco de dados
+        clearState();
       }
 
       connections.delete(deviceId);
@@ -98,7 +102,6 @@ export async function startConnection(deviceId, connectionName) {
     }
   });
 
-  // O saveCreds agora salva a sessão no Supabase
   client.ev.on("creds.update", saveCreds);
 
   return client;
