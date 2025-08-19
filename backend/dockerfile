@@ -3,25 +3,28 @@
 FROM node:20-slim
 
 # Instala as dependências de build necessárias para algumas bibliotecas Node.js
-# como `bcrypt` que requerem Python e g++
 RUN apt-get update && apt-get install -y python3 make g++ curl && rm -rf /var/lib/apt/lists/*
 
 # Define o diretório de trabalho dentro do container
 WORKDIR /app
 
-# Copia os arquivos de configuração do projeto e instala as dependências
+# Copia os ficheiros de configuração do projeto primeiro para aproveitar o cache do Docker
 COPY package.json ./
 COPY package-lock.json ./
-# Instala as dependências de producao.
-# A flag '--legacy-peer-deps' pode ser necessaria dependendo da versao das dependencias.
-RUN npm install --legacy-peer-deps --production
 
-# Copia o restante do código da aplicacao
-COPY . .
+# Instala as dependências de produção
+RUN npm install --production
+
+# ATUALIZADO: Copia explicitamente as pastas e ficheiros necessários
+# Isto garante que a estrutura de pastas seja sempre a correta.
+COPY src ./src
+COPY utils ./utils
+COPY server.js ./
+# Se tiver outros ficheiros na raiz do backend que são necessários, adicione-os aqui.
 
 # Expõe a porta que a aplicação irá usar
-ENV PORT=3001
+# O Render irá sobrescrever esta porta, mas é uma boa prática mantê-la
+ENV PORT=3000
 
 # Comando para rodar a aplicação quando o container iniciar.
-# O comando 'start' é o padrão para ambientes de produção.
 CMD [ "npm", "run", "start" ]
