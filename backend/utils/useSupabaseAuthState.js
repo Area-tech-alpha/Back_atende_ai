@@ -1,4 +1,5 @@
-import { proto, BufferJSON } from '@whiskeysockets/baileys';
+import baileys from '@whiskeysockets/baileys';
+const { proto, BufferJSON } = baileys;
 
 // Função principal que será usada no whatsappService.js
 export async function useSupabaseAuthState(supabase, sessionId) {
