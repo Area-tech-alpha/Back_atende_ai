@@ -1,8 +1,9 @@
 import baileys from '@whiskeysockets/baileys';
-const { proto, BufferJSON } = baileys;
+const { proto, BufferJSON, initAuthCreds } = baileys;
 
 // Função principal que será usada no whatsappService.js
 export async function useSupabaseAuthState(supabase, sessionId) {
+  // Mapeia os tipos de chave do Baileys para nomes mais simples
   const KEY_MAP = {
     'pre-key': 'preKeys',
     session: 'sessions',
@@ -49,7 +50,7 @@ export async function useSupabaseAuthState(supabase, sessionId) {
     }
   };
 
-  // Função para remover os dados do Supabase
+  // Função para remover um único dado do Supabase
   const removeData = async (id) => {
     try {
       await supabase.from('baileys_auth_store').delete().eq('id', id);
@@ -58,8 +59,8 @@ export async function useSupabaseAuthState(supabase, sessionId) {
     }
   };
 
-  // Carrega as credenciais iniciais
-  const creds = (await readData(`${sessionId}-creds`)) || proto.Message.InteractiveMessage.create();
+  // Carrega as credenciais iniciais ou cria novas se não existirem
+  const creds = (await readData(`${sessionId}-creds`)) || initAuthCreds();
 
   return {
     state: {
@@ -71,7 +72,7 @@ export async function useSupabaseAuthState(supabase, sessionId) {
             ids.map(async (id) => {
               let value = await readData(`${sessionId}-${KEY_MAP[type]}-${id}`);
               if (type === 'app-state-sync-key' && value) {
-                value = proto.AppStateSyncKeyData.fromObject(value);
+                value = proto.Message.AppStateSyncKeyData.fromObject(value);
               }
               data[id] = value;
             })
@@ -79,22 +80,25 @@ export async function useSupabaseAuthState(supabase, sessionId) {
           return data;
         },
         set: async (data) => {
+          const tasks = [];
           for (const key in data) {
             for (const id in data[key]) {
               const value = data[key][id];
               const idWithPrefix = `${sessionId}-${KEY_MAP[key]}-${id}`;
-              await writeData(value, idWithPrefix);
+              tasks.push(value ? writeData(value, idWithPrefix) : removeData(idWithPrefix));
             }
           }
+          await Promise.all(tasks);
         },
       },
     },
     saveCreds: () => {
       return writeData(creds, `${sessionId}-creds`);
     },
-   clearState: async () => {
+    // Função de limpeza completa e corrigida
+    clearState: async () => {
       try {
-        // Deleta todas as entradas no banco de dados que começam com o sessionId
+        // Apaga todas as entradas no banco de dados que começam com o sessionId
         await supabase
           .from('baileys_auth_store')
           .delete()
