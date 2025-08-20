@@ -1,15 +1,11 @@
-// =============================================================================
-// ARQUIVO 1: backend/src/services/whatsappService.js (CORREÇÃO FINAL)
-// Adicionada a camada de cache para as chaves de sessão (makeCacheableSignalKeyStore).
-// =============================================================================
 import {
   makeWASocket,
   DisconnectReason,
   isJidBroadcast,
   fetchLatestBaileysVersion,
-  makeCacheableSignalKeyStore, // <-- IMPORTADO
+  makeCacheableSignalKeyStore, 
 } from "@whiskeysockets/baileys";
-import { useSupabaseAuthState } from "../utils/useSupabaseAuthState.js";
+import { useSupabaseAuthState } from "../../utils/useSupabaseAuthState";
 import { createClient } from "@supabase/supabase-js";
 import qrcode from "qrcode";
 import pino from "pino";
@@ -41,11 +37,10 @@ export async function startConnection(deviceId, connectionName) {
   const { version } = await fetchLatestBaileysVersion();
   console.log(`[SERVICE] Usando a versão do Baileys: ${version.join(".")}`);
 
-  const logger = pino({ level: "trace" }); // Nível de log detalhado para depuração
+  const logger = pino({ level: "trace" }); 
 
   const client = makeWASocket({
     version,
-    // ATUALIZAÇÃO FINAL: Usando o makeCacheableSignalKeyStore para estabilidade
     auth: {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger),
