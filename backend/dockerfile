@@ -1,30 +1,21 @@
-# Usa a imagem base do Node.js
-# Usamos a versão 20-slim para uma imagem mais leve
+
 FROM node:20-slim
 
-# Instala as dependências de build necessárias para algumas bibliotecas Node.js
 RUN apt-get update && apt-get install -y python3 make g++ curl && rm -rf /var/lib/apt/lists/*
 
-# Define o diretório de trabalho dentro do container
 WORKDIR /app
 
-# Copia os ficheiros de configuração do projeto primeiro para aproveitar o cache do Docker
 COPY package.json ./
 COPY package-lock.json ./
 
-# Instala as dependências de produção
-RUN npm install --production
+RUN npm install --legacy-peer-deps --production
 
-# ATUALIZADO: Copia explicitamente as pastas e ficheiros necessários
-# Isto garante que a estrutura de pastas seja sempre a correta.
+
 COPY src ./src
 COPY utils ./utils
+COPY routes ./routes
 COPY server.js ./
-# Se tiver outros ficheiros na raiz do backend que são necessários, adicione-os aqui.
+COPY supabase-backend.js ./ # Adicionado para garantir que o worker o encontre
 
-# Expõe a porta que a aplicação irá usar
-# O Render irá sobrescrever esta porta, mas é uma boa prática mantê-la
 ENV PORT=3000
-
-# Comando para rodar a aplicação quando o container iniciar.
 CMD [ "npm", "run", "start" ]
