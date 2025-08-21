@@ -1,30 +1,38 @@
 version: '3.8'
 
 services:
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: frontend
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
-
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-      target: backend
-    ports:
-      - "3001:3001"
+    image: atende-ai-backend:latest
+    container_name: atende-ai-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    networks:
+      - vps2net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.atende-ai-api.rule=Host(`api.lionchat.tech`)"
+      - "traefik.http.routers.atende-ai-api.entrypoints=websecure"
+      - "traefik.http.routers.atende-ai-api.tls.certresolver=letsencryptresolver"
+      - "traefik.http.services.atende-ai-api.loadbalancer.server.port=3000"
+      - "traefik.docker.network=vps2net"
 
   worker:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-      target: backend
+    image: atende-ai-backend:latest # Reutiliza a mesma imagem do backend
+    container_name: atende-ai-worker
     command: ["npm", "run", "start:worker"]
-    environment:
-      SUPABASE_URL: https://qbezqfbovuyiphkvvnen.supabase.co
-      SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFiZXpxZmJvdnV5aXBoa3Z2bmVuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MzI5ODEzOCwiZXhwIjoyMDY4ODc0MTM4fQ.CqGJvsNQ-n8cw3Kej6dNTUznrdagWYSl3rGeHbZqKa0
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    networks:
+      - vps2net
+
+networks:
+  vps2net:
+    external: true
