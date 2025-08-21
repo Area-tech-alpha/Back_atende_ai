@@ -1,61 +1,49 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-// Importa o arquivo de rotas da API.
-// Este arquivo contém todas as rotas para /api/whatsapp, /api/chatbots, etc.
-import apiRoutes from './routes/api.js';
-
-import { ensureAuthDirExists } from './utils.js';
-
+import dotenv from "dotenv";
 dotenv.config();
 
-// Configuração para ES modules
+import express from "express";
+import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
+import apiRoutes from "./routes/api.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Variáveis de ambiente
-console.log(`Valor de PORT vindo do ambiente: ${process.env.PORT}`);
 const port = process.env.PORT || 3000;
-const frontendURL = process.env.FRONTEND_URL || '*';
+const frontendURL = process.env.FRONTEND_URL || "*";
+const allowedOrigins = frontendURL.split(",");
 
-console.log('--- Início da configuração do Express ---');
-
-app.use(cors({
-  origin: frontendURL,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  })
+);
 
 app.use(express.json());
 
-// Rota de teste simples na raiz
-app.get('/', (_req, res) => {
-  console.log('Rota raiz foi acessada! 🎉');
-  res.send('Servidor OK! 🎉');
+app.get("/", (_req, res) => {
+  res.send("Servidor OK! 🎉");
 });
 
+app.use("/api", apiRoutes);
 
-app.use('/api', apiRoutes);
+app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
-// Rota de health check. É uma boa prática ter uma na raiz também.
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
-
-console.log('--- Antes de ensureAuthDirExists ---');
-ensureAuthDirExists();
-console.log('--- Depois de ensureAuthDirExists ---');
-
-app.listen(port, '0.0.0.0', () => {
+app.listen(port, "0.0.0.0", () => {
   console.log(`Servidor rodando na porta ${port}`);
-  console.log(`Memória inicial: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
+  console.log(
+    `Memória inicial: ${Math.round(
+      process.memoryUsage().heapUsed / 1024 / 1024
+    )}MB`
+  );
 });
 
-// Código de monitoramento e tratamento de erros
 setInterval(() => {
   const mem = process.memoryUsage();
   const used = Math.round(mem.heapUsed / 1024 / 1024);
@@ -63,5 +51,9 @@ setInterval(() => {
   if (used > 500) console.warn(`⚠️ Memória alta: ${used}MB / ${total}MB`);
 }, 5 * 60 * 1000);
 
-process.on('uncaughtException', err => console.error('❌ Erro não tratado:', err));
-process.on('unhandledRejection', (reason, promise) => console.error('❌ Promessa rejeitada não tratada:', reason));
+process.on("uncaughtException", (err) =>
+  console.error("❌ Erro não tratado:", err)
+);
+process.on("unhandledRejection", (reason, promise) =>
+  console.error("❌ Promessa rejeitada não tratada:", reason)
+);
