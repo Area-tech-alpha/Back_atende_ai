@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config({ path: "../.env" }); 
 import { supabase, sendMessage } from "../src/services/whatsappService.js";
 import { getCurrentDateTime } from "./getCurrentDateTime.js";
 
