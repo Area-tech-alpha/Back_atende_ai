@@ -1,7 +1,7 @@
-import dotenv from "dotenv";
-dotenv.config({ path: "../.env" }); 
-import { supabase, sendMessage } from "../src/services/whatsappService.js";
+import { getSupabase, sendMessage } from "../src/services/whatsappService.js";
 import { getCurrentDateTime } from "./getCurrentDateTime.js";
+
+const supabase = getSupabase(); 
 
 function normalizeNumber(phone) {
   let cleaned = String(phone || "").replace(/\D/g, "");

@@ -13,10 +13,27 @@ import pino from "pino";
 export const connections = new Map();
 export const qrCodes = new Map();
 
-export const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+let supabaseClient = null;
+
+function getSupabaseClient() {
+  if (supabaseClient) {
+    return supabaseClient;
+  }
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error(
+      "[SERVICE] Variáveis de ambiente do Supabase não encontradas!"
+    );
+    throw new Error("Configuração do Supabase ausente");
+  }
+
+  supabaseClient = createClient(supabaseUrl, supabaseKey);
+  return supabaseClient;
+}
+
+export const getSupabase = getSupabaseClient;
 
 function formatPhoneNumber(phone) {
   let cleaned = String(phone || "").replace(/\D/g, "");
@@ -29,6 +46,7 @@ function formatPhoneNumber(phone) {
 export async function startConnection(deviceId, connectionName) {
   console.log(`[SERVICE] Iniciando conexão para: ${deviceId}`);
 
+  const supabase = getSupabaseClient(); 
   const { state, saveCreds, clearState } = await useSupabaseAuthState(
     supabase,
     deviceId
