@@ -1,5 +1,5 @@
-import express from 'express';
-import { startConnection, sendMessage, connections, qrCodes } from '../src/services/whatsappService.js';
+import express from "express";
+import { startConnection, sendMessage, connections, qrCodes } from "../src/services/whatsappService.js";
 import { rimraf } from "rimraf";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -18,7 +18,7 @@ router.post("/whatsapp/connect", async (req, res) => {
 
   try {
     if (connections.has(deviceId)) {
-        return res.status(200).json({ message: "Conexão já em andamento ou estabelecida." });
+      return res.status(200).json({ message: "Conexão já em andamento ou estabelecida." });
     }
     await startConnection(deviceId, connectionName);
     res.status(200).json({ message: "Iniciando conexão, aguarde o QR code." });
@@ -30,6 +30,7 @@ router.post("/whatsapp/connect", async (req, res) => {
 router.get("/whatsapp/qr/:deviceId", (req, res) => {
   const { deviceId } = req.params;
   const qr = qrCodes.get(deviceId);
+  console.log("Cheguei aqui", deviceId);
   if (qr) {
     return res.status(200).json({ qr });
   }
@@ -57,40 +58,40 @@ router.get("/whatsapp/status/:deviceId", (req, res) => {
 });
 
 router.get("/whatsapp/devices", (req, res) => {
-    const devices = Array.from(connections.values()).map(conn => ({
-        deviceId: conn.deviceId,
-        status: conn.status,
-        connection_name: conn.connection_name,
-    }));
-    res.status(200).json({ devices });
+  const devices = Array.from(connections.values()).map((conn) => ({
+    deviceId: conn.deviceId,
+    status: conn.status,
+    connection_name: conn.connection_name,
+  }));
+  res.status(200).json({ devices });
 });
 
 router.delete("/whatsapp/devices/:deviceId/auth", (req, res) => {
-    const { deviceId } = req.params;
-    const connection = connections.get(deviceId);
-    
-    if (connection && connection.client) {
-        connection.client.logout();
-    }
-    connections.delete(deviceId);
-    qrCodes.delete(deviceId);
+  const { deviceId } = req.params;
+  const connection = connections.get(deviceId);
 
-    const authFolder = path.join(__dirname, "..", "..", "auth", deviceId);
-    if (fs.existsSync(authFolder)) {
-        rimraf.sync(authFolder);
-    }
-    
-    res.status(200).json({ message: "Conexão e dados de autenticação removidos." });
+  if (connection && connection.client) {
+    connection.client.logout();
+  }
+  connections.delete(deviceId);
+  qrCodes.delete(deviceId);
+
+  const authFolder = path.join(__dirname, "..", "..", "auth", deviceId);
+  if (fs.existsSync(authFolder)) {
+    rimraf.sync(authFolder);
+  }
+
+  res.status(200).json({ message: "Conexão e dados de autenticação removidos." });
 });
 
 router.post("/whatsapp/send", async (req, res) => {
-    const { deviceId, number, message, imagemUrl } = req.body;
-    const result = await sendMessage(deviceId, number, message, imagemUrl);
-    if (result.success) {
-        res.status(200).json(result);
-    } else {
-        res.status(500).json(result);
-    }
+  const { deviceId, number, message, imagemUrl } = req.body;
+  const result = await sendMessage(deviceId, number, message, imagemUrl);
+  if (result.success) {
+    res.status(200).json(result);
+  } else {
+    res.status(500).json(result);
+  }
 });
 
 export default router;
