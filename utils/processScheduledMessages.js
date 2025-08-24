@@ -1,11 +1,12 @@
-import { getSupabase, sendMessage } from "../src/services/whatsappService.js";
-import { getCurrentDateTime } from "./getCurrentDateTime.js";
+import { getSupabase, sendMessage } from '../src/services/whatsappService.js';
+import dotenv from 'dotenv';
+dotenv.config();
 
-const supabase = getSupabase(); 
+const supabase = getSupabase();
 
 function normalizeNumber(phone) {
-  let cleaned = String(phone || "").replace(/\D/g, "");
-  if (!cleaned.startsWith("55")) cleaned = "55" + cleaned;
+  let cleaned = String(phone || '').replace(/\D/g, '');
+  if (!cleaned.startsWith('55')) cleaned = '55' + cleaned;
   return cleaned;
 }
 
@@ -13,9 +14,9 @@ export async function processScheduledMessages() {
   console.log(`[WORKER] Iniciando processamento de mensagens agendadas`);
 
   const { data: messages, error: fetchError } = await supabase
-    .from("mensagem_evolution")
-    .select("*")
-    .in("status", ["Scheduled", "Rascunho"]);
+    .from('mensagem_evolution')
+    .select('*')
+    .in('status', ['Scheduled', 'Rascunho']);
 
   if (fetchError) {
     console.error(`[WORKER] Erro ao buscar campanhas:`, fetchError);
@@ -31,15 +32,12 @@ export async function processScheduledMessages() {
     try {
       console.log(`[WORKER] ➤ Processando Campanha ${msg.id} (${msg.name})`);
 
-      await supabase
-        .from("mensagem_evolution")
-        .update({ status: "Em Andamento" })
-        .eq("id", msg.id);
+      await supabase.from('mensagem_evolution').update({ status: 'Em Andamento' }).eq('id', msg.id);
 
       const { data: contatosData, error: contatosError } = await supabase
-        .from("contato_evolution")
-        .select("contatos")
-        .eq("id", msg.contatos)
+        .from('contato_evolution')
+        .select('contatos')
+        .eq('id', msg.contatos)
         .single();
 
       if (contatosError || !contatosData) {
@@ -49,10 +47,7 @@ export async function processScheduledMessages() {
       const contatos = JSON.parse(contatosData.contatos);
       if (!contatos.length) {
         console.log(`[WORKER] Campanha ${msg.id} sem contatos. Finalizando.`);
-        await supabase
-          .from("mensagem_evolution")
-          .update({ status: "Concluída" })
-          .eq("id", msg.id);
+        await supabase.from('mensagem_evolution').update({ status: 'Concluída' }).eq('id', msg.id);
         continue;
       }
 
@@ -64,52 +59,50 @@ export async function processScheduledMessages() {
         const numero = normalizeNumber(contato.phone);
 
         if (index > 0) {
-          await new Promise((res) => setTimeout(res, delaySec * 1000));
+          await new Promise(res => setTimeout(res, delaySec * 1000));
         }
 
-        console.log(
-          `[WORKER] Enviando para ${numero} via device ${msg.device_id}`
-        );
+        console.log(`[WORKER] Enviando para ${numero} via device ${msg.device_id}`);
 
-        const result = await sendMessage(
-          msg.device_id,
-          numero,
-          msg.texto,
-          msg.imagem || null
-        );
+        let result = { sucess: false, error: 'Erro desconhecido' };
+        try {
+          const response = await fetch('http://localhost:3000/api/whatsapp/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              deviceId: msg.device_id,
+              number: numero,
+              message: msg.texto,
+              imageUrl: msg.imagem || null
+            })
+          });
+
+          result = await response.json();
+        } catch (e) {
+          result.error = e.message;
+          console.error(`[WORKER] Erro ao chamar a API de envio:`, e);
+        }
 
         if (result.success) {
           successCount++;
         } else {
           errorCount++;
         }
-        console.log(
-          `[WORKER] [${result.success ? "✔" : "✖"}] ${numero}: ${
-            result.success ? "Enviado" : result.error
-          }`
-        );
+        console.log(`[WORKER] [${result.success ? '✔' : '✖'}] ${numero}: ${result.success ? 'Enviado' : result.error}`);
       }
 
-      const finalStatus =
-        errorCount === 0 ? "Concluída" : "Concluída com erros";
-      await supabase
-        .from("mensagem_evolution")
-        .update({ status: finalStatus })
-        .eq("id", msg.id);
+      const finalStatus = errorCount === 0 ? 'Concluída' : 'Concluída com erros';
+      await supabase.from('mensagem_evolution').update({ status: finalStatus }).eq('id', msg.id);
 
-      console.log(
-        `[WORKER] ✅ Campanha ${msg.id} finalizada. Sucessos: ${successCount}, Falhas: ${errorCount}`
-      );
+      console.log(`[WORKER] ✅ Campanha ${msg.id} finalizada. Sucessos: ${successCount}, Falhas: ${errorCount}`);
     } catch (error) {
-      console.error(
-        `[WORKER] Erro grave no processamento da campanha ${msg.id}:`,
-        error.message
-      );
-      await supabase
-        .from("mensagem_evolution")
-        .update({ status: "Falhou" })
-        .eq("id", msg.id);
+      console.error(`[WORKER] Erro grave no processamento da campanha ${msg.id}:`, error.message);
+      await supabase.from('mensagem_evolution').update({ status: 'Falhou' }).eq('id', msg.id);
     }
   }
   console.log(`[WORKER] ✅ Processamento de campanhas finalizado.`);
 }
+
+processScheduledMessages();
