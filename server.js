@@ -17,6 +17,8 @@ const frontendURL = process.env.FRONTEND_URL || '*';
 
 const allowedOrigins = frontendURL.split(',');
 
+console.log('Allowed Origins:', allowedOrigins);
+
 app.use(
   cors({
     origin: allowedOrigins,
@@ -39,8 +41,10 @@ app.get('/dbtest', async (req, res) => {
 
   if (error) {
     console.error('Erro ao conectar ao banco: ', error.message);
+    res.json({ error: error.message });
   } else {
     console.log('Conexão com o banco OK: ', data);
+    res.json({ message: 'Conexão com o banco OK' });
   }
 });
 
