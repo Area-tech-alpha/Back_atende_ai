@@ -44,7 +44,7 @@ app.get('/dbtest', async (req, res) => {
     res.json({ error: error.message });
   } else {
     console.log('Conexão com o banco OK: ', data);
-    res.json({ message: 'Conexão com o banco OK: ', allowedOrigins });
+    res.json({ message: 'Conexão com o banco OK: ' });
   }
 });
 
