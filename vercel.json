@@ -15,7 +15,7 @@
   "crons": [
     {
       "path": "/api/worker/process-messages",
-      "schedule": "*/1 * * * *"
+      "schedule": "0 10 * * *"
     }
   ]
 }
