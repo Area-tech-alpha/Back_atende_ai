@@ -1,9 +1,16 @@
 import express from 'express';
-import { startConnection, sendMessage, connections, qrCodes } from '../src/services/whatsappService.js';
+import {
+  startConnection,
+  sendMessage,
+  connections,
+  qrCodes,
+  getSupabaseClient
+} from '../src/services/whatsappService.js';
 import { rimraf } from 'rimraf';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { useSupabaseAuthState } from '../utils/useSupabaseAuthState.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,27 +23,33 @@ router.post('/whatsapp/connect', async (req, res) => {
     return res.status(400).json({ error: 'deviceId é obrigatório.' });
   }
 
-  if (connections.has(deviceId)) {
-    console.log(`[API] Conexão existente ou fantasma encontrada para ${deviceId}. Limpando antes de reconectar...`);
-    const oldConnection = connections.get(deviceId);
+  try {
+    console.log(`[API] Recebida solicitação para conectar o deviceId: ${deviceId}`);
 
-    if (oldConnection && oldConnection.client) {
-      try {
-        await oldConnection.client.logout();
-      } catch (e) {
-        console.error(`[API] Erro ao desconectar cliente antigo (pode já estar morto): ${e.message}`);
+    if (connections.has(deviceId)) {
+      console.log(`[API] Limpando conexão em memória para ${deviceId}...`);
+      const oldConnection = connections.get(deviceId);
+      if (oldConnection && oldConnection.client) {
+        try {
+          await oldConnection.client.logout();
+        } catch (e) {}
       }
+      connections.delete(deviceId);
+      qrCodes.delete(deviceId);
     }
 
-    connections.delete(deviceId);
-    qrCodes.delete(deviceId);
-  }
+    console.log(`[API] Forçando a limpeza da sessão no Supabase para ${deviceId}...`);
+    const supabase = getSupabaseClient();
+    const { clearState } = await useSupabaseAuthState(supabase, deviceId);
+    await clearState();
+    console.log(`[API] Sessão no Supabase para ${deviceId} limpa com sucesso.`);
 
-  try {
+    console.log(`[API] Iniciando uma nova conexão limpa para ${deviceId}...`);
     await startConnection(deviceId, connectionName);
+
     res.status(200).json({ message: 'Iniciando nova conexão, aguarde o QR code.' });
   } catch (err) {
-    console.error('Erro ao iniciar conexão:', err);
+    console.error(`[API] Erro CRÍTICO ao iniciar conexão para ${deviceId}:`, err);
     res.status(500).json({ error: 'Erro ao iniciar conexão.', details: err.message });
   }
 });

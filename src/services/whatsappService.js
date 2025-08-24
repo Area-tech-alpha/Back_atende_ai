@@ -19,6 +19,8 @@ export function getSupabaseClient() {
   if (supabaseClient) {
     return supabaseClient;
   }
+  console.log('[SERVICE] Inicializando cliente Supabase...');
+
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -28,6 +30,8 @@ export function getSupabaseClient() {
   }
 
   supabaseClient = createClient(supabaseUrl, supabaseKey);
+  console.log('[SERVICE] Cliente Supabase inicializado com sucesso.');
+
   return supabaseClient;
 }
 

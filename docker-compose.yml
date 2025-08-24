@@ -1,0 +1,14 @@
+services:
+  backend:
+    build: .
+    container_name: atende-ai-backend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - '3000:3000'
+    networks:
+      - supabase_network_Back_atende_ai
+
+networks:
+  supabase_network_Back_atende_ai:
+    external: true

@@ -2,6 +2,7 @@ import { getSupabase, sendMessage } from '../src/services/whatsappService.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
+const apiUrl = process.env.INTERNAL_API_URL || 'http://localhost:3000';
 const supabase = getSupabase();
 
 function normalizeNumber(phone) {
@@ -66,7 +67,7 @@ export async function processScheduledMessages() {
 
         let result = { sucess: false, error: 'Erro desconhecido' };
         try {
-          const response = await fetch('http://localhost:3000/api/whatsapp/send', {
+          const response = await fetch(`${apiUrl}/api/whatsapp/send`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
