@@ -3,12 +3,14 @@ import {
   DisconnectReason,
   isJidBroadcast,
   fetchLatestBaileysVersion,
-  makeCacheableSignalKeyStore
-} from '@whiskeysockets/baileys';
-import { useSupabaseAuthState } from '../../utils/useSupabaseAuthState.js';
-import { createClient } from '@supabase/supabase-js';
-import qrcode from 'qrcode';
-import pino from 'pino';
+  makeCacheableSignalKeyStore,
+} from "@whiskeysockets/baileys";
+import { useSupabaseAuthState } from "../../utils/useSupabaseAuthState.js";
+import { createClient } from "@supabase/supabase-js";
+import qrcode from "qrcode";
+import pino from "pino";
+import dotenv from "dotenv";
+dotenv.config();
 
 export const connections = new Map();
 export const qrCodes = new Map();
@@ -17,20 +19,21 @@ let supabaseClient = null;
 
 export function getSupabaseClient() {
   if (supabaseClient) {
+    console.log("[SERVICE] Entregando cliente Supabase já inicializado.");
     return supabaseClient;
   }
-  console.log('[SERVICE] Inicializando cliente Supabase...');
+  console.log("[SERVICE] Inicializando cliente Supabase...");
 
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error('[SERVICE] Variáveis de ambiente do Supabase não encontradas!');
-    throw new Error('Configuração do Supabase ausente');
+    console.error("[SERVICE] Variáveis de ambiente do Supabase não encontradas!");
+    throw new Error("Configuração do Supabase ausente");
   }
 
   supabaseClient = createClient(supabaseUrl, supabaseKey);
-  console.log('[SERVICE] Cliente Supabase inicializado com sucesso.');
+  console.log("[SERVICE] Cliente Supabase inicializado com sucesso.");
 
   return supabaseClient;
 }
@@ -38,11 +41,11 @@ export function getSupabaseClient() {
 export const getSupabase = getSupabaseClient;
 
 function formatPhoneNumber(phone) {
-  let cleaned = String(phone || '').replace(/\D/g, '');
-  if (!cleaned.startsWith('55')) {
-    cleaned = '55' + cleaned;
+  let cleaned = String(phone || "").replace(/\D/g, "");
+  if (!cleaned.startsWith("55")) {
+    cleaned = "55" + cleaned;
   }
-  return cleaned + '@s.whatsapp.net';
+  return cleaned + "@s.whatsapp.net";
 }
 
 export async function startConnection(deviceId, connectionName) {
@@ -52,17 +55,17 @@ export async function startConnection(deviceId, connectionName) {
   const { state, saveCreds, clearState } = await useSupabaseAuthState(supabase, deviceId);
 
   const { version } = await fetchLatestBaileysVersion();
-  console.log(`[SERVICE] Usando a versão do Baileys: ${version.join('.')}`);
+  console.log(`[SERVICE] Usando a versão do Baileys: ${version.join(".")}`);
 
-  const logger = pino({ level: 'trace' });
+  const logger = pino({ level: "trace" });
 
   const client = makeWASocket({
     version,
     auth: {
       creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, logger)
+      keys: makeCacheableSignalKeyStore(state.keys, logger),
     },
-    browser: ['Chrome (Linux)', '', ''],
+    browser: ["Chrome (Linux)", "", ""],
     printQRInTerminal: false,
     logger: logger,
     connectTimeoutMs: 60000,
@@ -71,26 +74,26 @@ export async function startConnection(deviceId, connectionName) {
     markOnlineOnConnect: false,
     syncFullHistory: false,
     fireInitQueries: true,
-    shouldIgnoreJid: jid => isJidBroadcast(jid),
+    shouldIgnoreJid: (jid) => isJidBroadcast(jid),
     emitOwnEvents: false,
     generateHighQualityLinkPreview: false,
-    deviceId: deviceId
+    deviceId: deviceId,
   });
 
   connections.set(deviceId, {
     client,
-    status: 'connecting',
+    status: "connecting",
     deviceId,
-    connection_name: connectionName
+    connection_name: connectionName,
   });
 
-  client.ev.on('connection.update', update => {
+  client.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect, qr } = update;
     if (qr) {
       console.log(`[SERVICE] QR Code recebido para ${deviceId}`);
       qrCodes.set(deviceId, qr);
     }
-    if (connection === 'close') {
+    if (connection === "close") {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
@@ -106,19 +109,19 @@ export async function startConnection(deviceId, connectionName) {
         console.log(`[SERVICE] Desconexão definitiva. Limpando sessão de ${deviceId} do Supabase.`);
         clearState();
       }
-    } else if (connection === 'open') {
+    } else if (connection === "open") {
       console.log(`[SERVICE] Conexão aberta e estabelecida para ${deviceId}`);
       connections.set(deviceId, {
         client,
-        status: 'connected',
+        status: "connected",
         deviceId,
-        connection_name: connectionName
+        connection_name: connectionName,
       });
       qrCodes.delete(deviceId);
     }
   });
 
-  client.ev.on('creds.update', saveCreds);
+  client.ev.on("creds.update", saveCreds);
 
   return client;
 }
@@ -126,22 +129,22 @@ export async function startConnection(deviceId, connectionName) {
 export async function sendMessage(deviceId, number, message, imageUrl = null) {
   const connection = connections.get(deviceId);
 
-  if (!connection || connection.status !== 'connected') {
+  if (!connection || connection.status !== "connected") {
     return { success: false, error: `Dispositivo ${deviceId} não conectado.` };
   }
 
   try {
     const jid = formatPhoneNumber(number);
-    const [result] = await connection.client.onWhatsApp(jid.split('@')[0]);
+    const [result] = await connection.client.onWhatsApp(jid.split("@")[0]);
     if (!result?.exists) {
-      return { success: false, error: 'Número não existe no WhatsApp.' };
+      return { success: false, error: "Número não existe no WhatsApp." };
     }
 
     let response;
     if (imageUrl) {
       response = await connection.client.sendMessage(jid, {
         image: { url: imageUrl },
-        caption: message
+        caption: message,
       });
     } else {
       response = await connection.client.sendMessage(jid, { text: message });
