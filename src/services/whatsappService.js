@@ -126,8 +126,9 @@ export async function startConnection(deviceId, connectionName) {
   return client;
 }
 
-export async function sendMessage(deviceId, number, message, imageUrl = null) {
+export async function sendMessage(deviceId, number, message, imageUrl = null, messageId = null) {
   const connection = connections.get(deviceId);
+  const supabase = getSupabaseClient();
 
   if (!connection || connection.status !== "connected") {
     return { success: false, error: `Dispositivo ${deviceId} não conectado.` };
@@ -137,7 +138,7 @@ export async function sendMessage(deviceId, number, message, imageUrl = null) {
     const jid = formatPhoneNumber(number);
     const [result] = await connection.client.onWhatsApp(jid.split("@")[0]);
     if (!result?.exists) {
-      return { success: false, error: "Número não existe no WhatsApp." };
+      throw new Error("Número não existe no WhatsApp.");
     }
 
     let response;
@@ -150,9 +151,35 @@ export async function sendMessage(deviceId, number, message, imageUrl = null) {
       response = await connection.client.sendMessage(jid, { text: message });
     }
 
+    const { error: insertError } = await supabase.from("envio_evolution").insert([
+      {
+        id_mensagem: messageId,
+        contato: number,
+        status: "success",
+      },
+    ]);
+
+    if (insertError) {
+      console.error("[SERVICE] Erro ao salvar LOG de sucesso no Supabase:", insertError);
+    }
+
     return { success: true, messageId: response.key.id };
   } catch (error) {
-    console.error(`[SERVICE] Erro ao enviar mensagem para ${number}:`, error);
+    console.error(`[SERVICE] Erro ao enviar mensagem para ${number}:`, error.message);
+
+    const { error: insertError } = await supabase.from("envio_evolution").insert([
+      {
+        id_mensagem: messageId,
+        contato: number,
+        status: "error",
+        erro: error.message,
+      },
+    ]);
+
+    if (insertError) {
+      console.error("[SERVICE] Erro ao salvar LOG de falha no Supabase:", insertError);
+    }
+
     return { success: false, error: error.message };
   }
 }

@@ -121,6 +121,21 @@ router.post("/whatsapp/send", async (req, res) => {
   }
 });
 
+router.post("/campaigns", async (req, res) => {
+  const {
+    name,
+    texto,
+    imagem,
+    data_de_envio,
+    contatos,
+    delay,
+    status,
+    device_id,
+    nome_da_instancia,
+    apikey_da_instancia,
+  } = req.body;
+});
+
 router.delete("/campaigns/:id", async (req, res) => {
   const campaignId = req.params.id;
   const supabase = getSupabaseClient();
