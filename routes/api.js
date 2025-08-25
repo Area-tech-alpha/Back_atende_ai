@@ -121,4 +121,27 @@ router.post("/whatsapp/send", async (req, res) => {
   }
 });
 
+router.delete("/campaigns/:id", async (req, res) => {
+  const campaignId = req.params.id;
+  const supabase = getSupabaseClient();
+
+  if (!campaignId) {
+    console.log("Erro ao apagar uma campanha: Não foi recebido um id");
+    return res.status(500).json({ message: "Não foi enviado o id da campanha" });
+  }
+
+  try {
+    const { data } = await supabase.from("mensagem_evolution").select().eq("id", campaignId);
+    console.log(data.length);
+    if (data.length == 0) {
+      return res.status(404).json({ message: "ID inválido" });
+    }
+
+    await supabase.from("mensagem_evolution").delete().eq("id", campaignId);
+    return res.status(204).json("Campanha deletada com sucesso.");
+  } catch (error) {
+    console.error("Erro ao deletar uma campanha", error);
+  }
+});
+
 export default router;
