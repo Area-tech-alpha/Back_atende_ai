@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 
 export const authMiddleware = (req, res, next) => {
   const token = req.cookies.token;
-
+  console.log("Token recebido:", token);
   if (!token) {
     console.log("Acesso negado. Nenhum token fornecido.");
     return res.status(401).json({ error: "Acesso negado. Nenhum token fornecido." });
