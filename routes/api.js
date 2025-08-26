@@ -123,6 +123,54 @@ router.post("/whatsapp/send", authMiddleware, async (req, res) => {
   }
 });
 
+router.get("/campaigns/with-stats", authMiddleware, async (req, res) => {
+  const { id: userId } = req.user;
+  const supabase = getSupabaseClient();
+
+  try {
+    const { data: campaigns, error: campaignsError } = await supabase
+      .from("mensagem_evolution")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (campaignsError) throw campaignsError;
+    if (!campaigns || campaigns.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    const campaignIds = campaigns.map((c) => c.id);
+    const { data: sends, error: sendsError } = await supabase
+      .from("envio_evolution")
+      .select("id_mensagem, status")
+      .in("id_mensagem", campaignIds);
+
+    if (sendsError) throw sendsError;
+
+    const campaignsWithStats = campaigns.map((campaign) => {
+      const campaignSends = sends.filter((s) => s.id_mensagem === campaign.id);
+      const deliveredCount = campaignSends.filter((s) => s.status === "success").length;
+      const errorCount = campaignSends.filter((s) => s.status === "error").length;
+
+      return {
+        ...campaign,
+        sentCount: campaignSends.length,
+        deliveredCount: deliveredCount,
+        readCount: 0,
+        errorCount: errorCount,
+        description: campaign.texto,
+        date: campaign.data_de_envio || campaign.created_at,
+        template: campaign.imagem ? "Com Imagem" : "Apenas Texto",
+      };
+    });
+
+    return res.status(200).json(campaignsWithStats);
+  } catch (error) {
+    console.error("Erro ao buscar campanhas com stats:", error);
+    res.status(500).json({ message: "Erro ao buscar campanhas com stats", error });
+  }
+});
+
 router.get("/campaigns", authMiddleware, async (req, res) => {
   const { id: userId } = req.user;
 
