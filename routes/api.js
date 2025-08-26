@@ -113,8 +113,8 @@ router.delete("/whatsapp/devices/:deviceId/auth", authMiddleware, (req, res) => 
 });
 
 router.post("/whatsapp/send", authMiddleware, async (req, res) => {
-  const { deviceId, number, message, imagemUrl } = req.body; //TODO passar o messageId para a função sendMessage
-  const result = await sendMessage(deviceId, number, message, imagemUrl);
+  const { deviceId, number, message, imagemUrl, messageId } = req.body;
+  const result = await sendMessage(deviceId, number, message, imagemUrl, messageId);
   if (result.success) {
     res.status(200).json(result);
   } else {
@@ -123,7 +123,7 @@ router.post("/whatsapp/send", authMiddleware, async (req, res) => {
 });
 
 router.get("/campaigns", authMiddleware, async (req, res) => {
-  const { userId } = req.query;
+  const { id: userId } = req.user;
 
   if (!userId) {
     return res.status(400).json({ message: "O userId é obrigatório." });
@@ -182,7 +182,7 @@ router.post("/campaigns", authMiddleware, async (req, res) => {
 
 router.put("/campaigns/:id", authMiddleware, async (req, res) => {
   const { id: campaignId } = req.params;
-  const { userId } = req.query;
+  const { id: userId } = req.user;
   const campaignDataToUpdate = req.body;
 
   if (!userId) {

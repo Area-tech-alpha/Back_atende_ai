@@ -7,6 +7,10 @@ import crypto from "crypto";
 const authRouter = express.Router();
 const supabase = getSupabase();
 
+authRouter.get("/me", authMiddleware, (req, res) => {
+  res.status(200).json({ user: req.user });
+});
+
 authRouter.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -114,6 +118,17 @@ authRouter.post("/register", async (req, res) => {
     console.error("Erro inesperado no registro:", error);
     return res.status(500).json({ error: "Ocorreu um erro inesperado." });
   }
+});
+
+router.post("/logout", (req, res) => {
+  res.cookie("token", "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Lax",
+    expires: new Date(0),
+  });
+
+  res.status(200).json({ message: "Logout bem-sucedido." });
 });
 
 export default authRouter;
