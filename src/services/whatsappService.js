@@ -57,8 +57,6 @@ export async function startConnection(deviceId, connectionName) {
   const { version } = await fetchLatestBaileysVersion();
   console.log(`[SERVICE] Usando a versão do Baileys: ${version.join(".")}`);
 
-  const logger = pino({ level: "trace" });
-
   const client = makeWASocket({
     version,
     auth: {
@@ -67,7 +65,6 @@ export async function startConnection(deviceId, connectionName) {
     },
     browser: ["Chrome (Linux)", "", ""],
     printQRInTerminal: false,
-    logger: logger,
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 60000,
     retryRequestDelayMs: 250,

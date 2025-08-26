@@ -8,6 +8,7 @@ import { fileURLToPath } from "url";
 import apiRoutes from "./routes/api.js";
 import authRoutes from "./routes/auth.js";
 import { getSupabaseClient } from "./src/services/whatsappService.js";
+import cookieParser from "cookie-parser";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,6 +31,7 @@ app.use(
 );
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.get("/", (_req, res) => {
   res.send("Servidor OK! 🎉");

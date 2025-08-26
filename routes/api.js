@@ -11,13 +11,14 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import { useSupabaseAuthState } from "../utils/useSupabaseAuthState.js";
+import { authMiddleware } from "../middlewares/authMiddleware.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
-router.post("/whatsapp/connect", async (req, res) => {
+router.post("/whatsapp/connect", authMiddleware, async (req, res) => {
   const { deviceId, connectionName } = req.body;
   if (!deviceId) {
     return res.status(400).json({ error: "deviceId é obrigatório." });
@@ -54,7 +55,7 @@ router.post("/whatsapp/connect", async (req, res) => {
   }
 });
 
-router.get("/whatsapp/qr/:deviceId", (req, res) => {
+router.get("/whatsapp/qr/:deviceId", authMiddleware, (req, res) => {
   const { deviceId } = req.params;
   const qr = qrCodes.get(deviceId);
   console.log("Cheguei aqui", deviceId);
@@ -64,7 +65,7 @@ router.get("/whatsapp/qr/:deviceId", (req, res) => {
   return res.status(404).json({ error: "QR code não encontrado ou conexão já estabelecida." });
 });
 
-router.get("/whatsapp/status/:deviceId", (req, res) => {
+router.get("/whatsapp/status/:deviceId", authMiddleware, (req, res) => {
   try {
     const { deviceId } = req.params;
     if (!deviceId) {
@@ -84,7 +85,7 @@ router.get("/whatsapp/status/:deviceId", (req, res) => {
   }
 });
 
-router.get("/whatsapp/devices", (req, res) => {
+router.get("/whatsapp/devices", authMiddleware, (req, res) => {
   const devices = Array.from(connections.values()).map((conn) => ({
     deviceId: conn.deviceId,
     status: conn.status,
@@ -93,7 +94,7 @@ router.get("/whatsapp/devices", (req, res) => {
   res.status(200).json({ devices });
 });
 
-router.delete("/whatsapp/devices/:deviceId/auth", (req, res) => {
+router.delete("/whatsapp/devices/:deviceId/auth", authMiddleware, (req, res) => {
   const { deviceId } = req.params;
   const connection = connections.get(deviceId);
 
@@ -111,7 +112,7 @@ router.delete("/whatsapp/devices/:deviceId/auth", (req, res) => {
   res.status(200).json({ message: "Conexão e dados de autenticação removidos." });
 });
 
-router.post("/whatsapp/send", async (req, res) => {
+router.post("/whatsapp/send", authMiddleware, async (req, res) => {
   const { deviceId, number, message, imagemUrl } = req.body; //TODO passar o messageId para a função sendMessage
   const result = await sendMessage(deviceId, number, message, imagemUrl);
   if (result.success) {
@@ -121,7 +122,7 @@ router.post("/whatsapp/send", async (req, res) => {
   }
 });
 
-router.get("/campaigns", async (req, res) => {
+router.get("/campaigns", authMiddleware, async (req, res) => {
   const { userId } = req.query;
 
   if (!userId) {
@@ -147,7 +148,7 @@ router.get("/campaigns", async (req, res) => {
   }
 });
 
-router.post("/campaigns", async (req, res) => {
+router.post("/campaigns", authMiddleware, async (req, res) => {
   const { userId, ...campaignData } = req.body;
 
   if (!userId) {
@@ -179,7 +180,7 @@ router.post("/campaigns", async (req, res) => {
   }
 });
 
-router.put("/campaigns/:id", async (req, res) => {
+router.put("/campaigns/:id", authMiddleware, async (req, res) => {
   const { id: campaignId } = req.params;
   const { userId } = req.query;
   const campaignDataToUpdate = req.body;
@@ -216,9 +217,9 @@ router.put("/campaigns/:id", async (req, res) => {
   }
 });
 
-router.delete("/campaigns/:id", async (req, res) => {
+router.delete("/campaigns/:id", authMiddleware, async (req, res) => {
   const { id: campaignId } = req.params;
-  const { userId } = req.query;
+  const { id: userId } = req.user;
 
   if (!userId) {
     return res.status(400).json({ message: "O userId é obrigatório." });
@@ -245,6 +246,128 @@ router.delete("/campaigns/:id", async (req, res) => {
   } catch (error) {
     console.error("Erro ao deletar uma campanha", error);
     return res.status(500).json({ message: "Erro inesperado ao deletar campanha", error });
+  }
+});
+
+router.get("/dashboard/stats", authMiddleware, async (req, res) => {
+  const { id: userId } = req.user;
+  if (!userId) {
+    return res.status(400).json({ message: "O userId é obrigatório." });
+  }
+
+  const supabase = getSupabaseClient();
+  try {
+    const { data: contactListsData, error: contactsError } = await supabase
+      .from("contato_evolution")
+      .select("id, contatos")
+      .eq("user_id", userId);
+    if (contactsError) throw contactsError;
+
+    const contactIds = contactListsData?.map((list) => list.id) || [];
+    const totalContacts =
+      contactListsData?.reduce((acc, list) => acc + JSON.parse(list.contatos || "[]").length, 0) || 0;
+
+    const { data: messagesData, error: messagesError } = await supabase
+      .from("mensagem_evolution")
+      .select("id, name, status, created_at, nome_da_instancia")
+      .eq("userId", userId)
+      .order("created_at", { ascending: false });
+    if (messagesError) throw messagesError;
+
+    const messageIds = messagesData?.map((msg) => msg.id) || [];
+    if (messageIds.length === 0) {
+      return res.status(200).json({
+        stats: {
+          totalMessages: 0,
+          totalContacts,
+          deliveryRate: 0,
+          avgSendInterval: 0,
+          messageChange: 0,
+          contactChange: 0,
+          deliveryChange: 0,
+          responseChange: 0,
+        },
+        recentCampaigns: [],
+      });
+    }
+
+    const { data: enviosData, error: enviosError } = await supabase
+      .from("envio_evolution")
+      .select("id_mensagem, status, data_envio")
+      .in("id_mensagem", messageIds);
+    if (enviosError) throw enviosError;
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date(new Date().setDate(now.getDate() - 30));
+    const sixtyDaysAgo = new Date(new Date().setDate(now.getDate() - 60));
+
+    const enviosLast30Days = enviosData.filter((e) => new Date(e.data_envio) >= thirtyDaysAgo);
+    const enviosPrevious30Days = enviosData.filter(
+      (e) => new Date(e.data_envio) < thirtyDaysAgo && new Date(e.data_envio) >= sixtyDaysAgo
+    );
+
+    const calculateChange = (current, previous) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return ((current - previous) / previous) * 100;
+    };
+
+    const messageChange = calculateChange(enviosLast30Days.length, enviosPrevious30Days.length);
+
+    const deliveredLast30 = enviosLast30Days.filter((e) => e.status === "success").length;
+    const deliveredPrevious30 = enviosPrevious30Days.filter((e) => e.status === "success").length;
+
+    const deliveryRateLast30 = enviosLast30Days.length > 0 ? (deliveredLast30 / enviosLast30Days.length) * 100 : 0;
+    const deliveryRatePrevious30 =
+      enviosPrevious30Days.length > 0 ? (deliveredPrevious30 / enviosPrevious30Days.length) * 100 : 0;
+    const deliveryChange = calculateChange(deliveryRateLast30, deliveryRatePrevious30);
+
+    let avgSendInterval = 0;
+    if (enviosData && enviosData.length > 1) {
+      const sortedEnvios = [...enviosData].sort(
+        (a, b) => new Date(a.data_envio).getTime() - new Date(b.data_envio).getTime()
+      );
+      const totalDiff = sortedEnvios
+        .slice(1)
+        .reduce(
+          (acc, curr, i) =>
+            acc + (new Date(curr.data_envio).getTime() - new Date(sortedEnvios[i].data_envio).getTime()),
+          0
+        );
+      avgSendInterval = totalDiff / (sortedEnvios.length - 1) / 1000 / 60; // em minutos
+    }
+
+    const stats = {
+      totalMessages: enviosData.length,
+      totalContacts,
+      deliveryRate: deliveryRateLast30,
+      avgSendInterval,
+      messageChange,
+      contactChange: 0, // Manter 0 por enquanto
+      deliveryChange,
+      responseChange: 0, // Manter 0 por enquanto
+    };
+
+    const recentCampaigns =
+      messagesData?.map((message) => {
+        const messageEnvios = enviosData?.filter((e) => e.id_mensagem === message.id) || [];
+        const delivered = messageEnvios.filter((e) => e.status === "success").length;
+        const deliveryRate = messageEnvios.length > 0 ? (delivered / messageEnvios.length) * 100 : 0;
+        return {
+          id: message.id,
+          name: message.name || `Campanha ${message.id}`,
+          status: message.status,
+          messages: messageEnvios.length,
+          delivered,
+          deliveryRate,
+          date: message.created_at,
+          nome_da_instancia: message.nome_da_instancia,
+        };
+      }) || [];
+
+    return res.status(200).json({ stats, recentCampaigns });
+  } catch (error) {
+    console.error("Erro ao buscar dados do dashboard:", error);
+    return res.status(500).json({ message: "Erro ao buscar dados do dashboard", error });
   }
 });
 
