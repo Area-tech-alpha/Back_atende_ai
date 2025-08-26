@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { getSupabase } from "../src/services/whatsappService.js";
 import argon2 from "argon2";
 import crypto from "crypto";
+import { authMiddleware } from "../middlewares/authMiddleware.js";
 
 const authRouter = express.Router();
 const supabase = getSupabase();
@@ -51,7 +52,7 @@ authRouter.post("/login", async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "Lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     return res.status(200).json({
@@ -120,7 +121,7 @@ authRouter.post("/register", async (req, res) => {
   }
 });
 
-router.post("/logout", (req, res) => {
+authRouter.post("/logout", (req, res) => {
   res.cookie("token", "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
