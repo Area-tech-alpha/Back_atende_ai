@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 
 export const authMiddleware = (req, res, next) => {
-  const token = req.cookies.token;
+  const token = req.headers["authorization"]?.split(" ")[1];
   console.log("Token recebido:", token);
   if (!token) {
     console.log("Acesso negado. Nenhum token fornecido.");
