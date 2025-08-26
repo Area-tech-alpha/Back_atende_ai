@@ -1,4 +1,4 @@
-import { getSupabase } from "../src/services/whatsappService.js";
+import { getSupabase, sendMessage } from "../src/services/whatsappService.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -69,20 +69,10 @@ async function processCampaigns() {
 
           let result = { success: false, error: "Erro desconhecido" };
           try {
-            const response = await fetch(`${apiUrl}/api/whatsapp/send`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                deviceId: msg.device_id,
-                number: numero,
-                message: msg.texto,
-                imageUrl: msg.imagem || null,
-                messageId: msg.id,
-              }),
-            });
-            result = await response.json();
+            const response = await sendMessage(msg.device_id, numero, msg.texto, msg.imagem || null, msg.id);
+            if (response.success) {
+              result = { success: true };
+            }
           } catch (e) {
             result.error = e.message;
             console.error(`[WORKER] Erro ao chamar a API de envio:`, e);

@@ -343,7 +343,7 @@ router.get("/dashboard/stats", authMiddleware, async (req, res) => {
     const { data: messagesData, error: messagesError } = await supabase
       .from("mensagem_evolution")
       .select("id, name, status, created_at, nome_da_instancia")
-      .eq("userId", userId)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
     if (messagesError) throw messagesError;
 
