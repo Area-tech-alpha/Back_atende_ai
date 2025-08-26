@@ -9,11 +9,6 @@ VALUES ('dev@email.com', '$argon2id$v=19$m=65536,t=3,p=4$by/LcN2zyosA9mJBT2ZIug$
 INSERT INTO public.evolution (url, apikey)
 VALUES ('http://localhost:8080', 'apikey_global_evolution');
 
--- Inserir um grupo de contatos associado ao login de teste
--- O JSON precisa estar em uma única linha ou ser um JSON válido.
-INSERT INTO public.contato_evolution (name, relacao_login, contatos)
-VALUES ('Contatos de Teste', 1, '[{"name": "Contato Teste 1", "phone": "5511999999999"}, {"name": "Contato Teste 2", "phone": "5521988888888"}]');
-
 -- Inserir um assistente de instância de teste
 INSERT INTO public.instance_assistants (instance_name, assistant_id, is_active)
 VALUES ('instancia_dev', 'asst_abc123def456', true);

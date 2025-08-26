@@ -20,6 +20,7 @@ const router = express.Router();
 
 router.post("/whatsapp/connect", authMiddleware, async (req, res) => {
   const { deviceId, connectionName } = req.body;
+  const userId = req.user?.id;
   if (!deviceId) {
     return res.status(400).json({ error: "deviceId é obrigatório." });
   }
@@ -149,7 +150,9 @@ router.get("/campaigns", authMiddleware, async (req, res) => {
 });
 
 router.post("/campaigns", authMiddleware, async (req, res) => {
-  const { userId, ...campaignData } = req.body;
+  const { id: userId } = req.user;
+
+  const { ...campaignData } = req.body;
 
   if (!userId) {
     return res.status(400).json({ message: "O userId é obrigatório." });
