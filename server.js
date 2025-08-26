@@ -9,6 +9,7 @@ import apiRoutes from "./routes/api.js";
 import authRoutes from "./routes/auth.js";
 import { getSupabaseClient } from "./src/services/whatsappService.js";
 import cookieParser from "cookie-parser";
+import { startWorker } from "./utils/processScheduledMessages.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,6 +58,7 @@ app.use("/api", apiRoutes);
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 app.listen(port, "0.0.0.0", () => {
+  startWorker();
   console.log(`Servidor rodando na porta ${port}`);
   console.log(`Memória inicial: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
 });

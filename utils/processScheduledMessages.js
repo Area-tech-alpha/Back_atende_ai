@@ -115,7 +115,7 @@ async function processCampaigns() {
   }
 }
 
-function startWorker() {
+export function startWorker() {
   const INTERVALO_EM_MINUTOS = 1;
   const intervalMs = INTERVALO_EM_MINUTOS * 60 * 1000;
 
@@ -125,5 +125,3 @@ function startWorker() {
 
   setInterval(processCampaigns, intervalMs);
 }
-
-startWorker();
