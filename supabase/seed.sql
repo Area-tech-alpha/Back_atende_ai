@@ -3,7 +3,7 @@
 
 -- Inserir um login de teste
 INSERT INTO public.login_evolution (email, senha, nome_da_instancia, apikey, id_instancia)
-VALUES ('dev@email.com', 'sanguenoolho', 'instancia_dev', 'apikey_secreta_123', 'id_instancia_exemplo');
+VALUES ('dev@email.com', '$argon2id$v=19$m=65536,t=3,p=4$by/LcN2zyosA9mJBT2ZIug$eoLYnj/eLe6197FJC0M3XVQ3SUSFsEspU6B4Lu9Rvzs', 'instancia_dev', 'apikey_secreta_123', 'id_instancia_exemplo');
 
 -- Inserir uma configuração de API da Evolution
 INSERT INTO public.evolution (url, apikey)
