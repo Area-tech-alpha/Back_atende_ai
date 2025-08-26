@@ -61,7 +61,7 @@ export async function startConnection(deviceId, connectionName) {
     version,
     auth: {
       creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, logger),
+      keys: makeCacheableSignalKeyStore(state.keys),
     },
     browser: ["Chrome (Linux)", "", ""],
     printQRInTerminal: false,

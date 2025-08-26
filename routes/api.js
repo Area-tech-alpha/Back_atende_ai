@@ -252,6 +252,68 @@ router.delete("/campaigns/:id", authMiddleware, async (req, res) => {
   }
 });
 
+router.post("/contacts", authMiddleware, async (req, res) => {
+  const { id: userId } = req.user;
+  const { name, contatos } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ message: "O userId é obrigatório." });
+  }
+  if (!name || !contatos) {
+    return res.status(400).json({ message: "O nome e os contatos são obrigatórios." });
+  }
+
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from("contato_evolution")
+      .insert([
+        {
+          name,
+          contatos: JSON.stringify(contatos),
+          user_id: userId,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Erro ao criar lista de contatos:", error);
+      return res.status(500).json({ message: "Erro ao criar lista de contatos", error });
+    }
+
+    return res.status(201).json(data);
+  } catch (error) {
+    console.error("Erro ao criar lista de contatos:", error);
+    return res.status(500).json({ message: "Erro ao criar lista de contatos", error });
+  }
+});
+
+router.get("/contacts", authMiddleware, async (req, res) => {
+  const { id: userId } = req.user;
+  if (!userId) {
+    return res.status(400).json({ message: "O userId é obrigatório." });
+  }
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from("contato_evolution")
+      .select()
+      .eq("user_id", userId)
+      .order("id", { ascending: false });
+
+    if (error) {
+      console.error("Erro ao buscar listas de contatos:", error);
+      return res.status(500).json({ message: "Erro ao buscar listas de contatos", error });
+    }
+
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error("Erro ao buscar listas de contatos:", error);
+    return res.status(500).json({ message: "Erro ao buscar listas de contatos", error });
+  }
+});
+
 router.get("/dashboard/stats", authMiddleware, async (req, res) => {
   const { id: userId } = req.user;
   if (!userId) {
@@ -366,57 +428,53 @@ router.get("/dashboard/stats", authMiddleware, async (req, res) => {
           nome_da_instancia: message.nome_da_instancia,
         };
       }) || [];
-// ==================================================================
-  // INÍCIO: Lógica para calcular os dados do gráfico de atividades
-  // ==================================================================
-  
-  const chartLabels = [];
-  const sentData = [];
-  const deliveredData = [];
-  
- 
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    
-    chartLabels.push(date.toLocaleDateString('pt-BR', { weekday: 'short' }));
+    // ==================================================================
+    // INÍCIO: Lógica para calcular os dados do gráfico de atividades
+    // ==================================================================
 
-  
-    const dayStart = new Date(date.setHours(0, 0, 0, 0));
-    const dayEnd = new Date(date.setHours(23, 59, 59, 999));
+    const chartLabels = [];
+    const sentData = [];
+    const deliveredData = [];
 
- 
-    const enviosDoDia = enviosData.filter(e => {
-      const sentDate = new Date(e.data_envio);
-      return sentDate >= dayStart && sentDate <= dayEnd;
-    });
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
 
- 
-    const totalEnviadoNoDia = enviosDoDia.length;
-    const totalEntregueNoDia = enviosDoDia.filter(e => e.status === 'success' || e.status === 'read').length;
+      chartLabels.push(date.toLocaleDateString("pt-BR", { weekday: "short" }));
 
-    sentData.push(totalEnviadoNoDia);
-    deliveredData.push(totalEntregueNoDia);
-  }
-  const chartData = {
-    labels: chartLabels,
-    datasets: [
-      {
-        label: 'Mensagens Enviadas',
-        data: sentData,
-        color: '#FFD700',
-      },
-      {
-        label: 'Mensagens Entregues',
-        data: deliveredData,
-        color: '#FFE44D',
-      }
-    ]
-  };
-  // ==================================================================
-  // FIM: Lógica do gráfico
-  // ==================================================================
-   return res.status(200).json({ stats, recentCampaigns, chartData });
+      const dayStart = new Date(date.setHours(0, 0, 0, 0));
+      const dayEnd = new Date(date.setHours(23, 59, 59, 999));
+
+      const enviosDoDia = enviosData.filter((e) => {
+        const sentDate = new Date(e.data_envio);
+        return sentDate >= dayStart && sentDate <= dayEnd;
+      });
+
+      const totalEnviadoNoDia = enviosDoDia.length;
+      const totalEntregueNoDia = enviosDoDia.filter((e) => e.status === "success" || e.status === "read").length;
+
+      sentData.push(totalEnviadoNoDia);
+      deliveredData.push(totalEntregueNoDia);
+    }
+    const chartData = {
+      labels: chartLabels,
+      datasets: [
+        {
+          label: "Mensagens Enviadas",
+          data: sentData,
+          color: "#FFD700",
+        },
+        {
+          label: "Mensagens Entregues",
+          data: deliveredData,
+          color: "#FFE44D",
+        },
+      ],
+    };
+    // ==================================================================
+    // FIM: Lógica do gráfico
+    // ==================================================================
+    return res.status(200).json({ stats, recentCampaigns, chartData });
   } catch (error) {
     console.error("Erro ao buscar dados do dashboard:", error);
     return res.status(500).json({ message: "Erro ao buscar dados do dashboard", error });
