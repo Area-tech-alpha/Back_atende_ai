@@ -254,13 +254,21 @@ router.delete("/campaigns/:id", authMiddleware, async (req, res) => {
 
 router.post("/contacts", authMiddleware, async (req, res) => {
   const { id: userId } = req.user;
-  const { name, contatos } = req.body;
+  let { name, contatos } = req.body;
 
   if (!userId) {
     return res.status(400).json({ message: "O userId é obrigatório." });
   }
   if (!name || !contatos) {
     return res.status(400).json({ message: "O nome e os contatos são obrigatórios." });
+  }
+
+  if (typeof contatos === "string") {
+    try {
+      contatos = JSON.parse(contatos);
+    } catch (e) {
+      return res.status(400).json({ message: "O formato dos contatos enviados é um JSON inválido." });
+    }
   }
 
   const supabase = getSupabaseClient();
@@ -270,7 +278,7 @@ router.post("/contacts", authMiddleware, async (req, res) => {
       .insert([
         {
           name,
-          contatos: JSON.stringify(contatos),
+          contatos: contatos,
           user_id: userId,
         },
       ])
