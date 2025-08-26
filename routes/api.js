@@ -112,7 +112,7 @@ router.delete("/whatsapp/devices/:deviceId/auth", (req, res) => {
 });
 
 router.post("/whatsapp/send", async (req, res) => {
-  const { deviceId, number, message, imagemUrl } = req.body;
+  const { deviceId, number, message, imagemUrl } = req.body; //TODO passar o messageId para a função sendMessage
   const result = await sendMessage(deviceId, number, message, imagemUrl);
   if (result.success) {
     res.status(200).json(result);
@@ -121,41 +121,130 @@ router.post("/whatsapp/send", async (req, res) => {
   }
 });
 
+router.get("/campaigns", async (req, res) => {
+  const { userId } = req.query;
+
+  if (!userId) {
+    return res.status(400).json({ message: "O userId é obrigatório." });
+  }
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from("mensagem_evolution")
+      .select()
+      .eq("user_id", userId)
+      .order("id", { ascending: false });
+
+    if (error) {
+      console.error("Erro ao buscar campanhas:", error);
+      return res.status(500).json({ message: "Erro ao buscar campanhas", error });
+    }
+
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error("Erro ao buscar campanhas:", error);
+    return res.status(500).json({ message: "Erro ao buscar campanhas", error });
+  }
+});
+
 router.post("/campaigns", async (req, res) => {
-  const {
-    name,
-    texto,
-    imagem,
-    data_de_envio,
-    contatos,
-    delay,
-    status,
-    device_id,
-    nome_da_instancia,
-    apikey_da_instancia,
-  } = req.body;
+  const { userId, ...campaignData } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ message: "O userId é obrigatório." });
+  }
+
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from("mensagem_evolution")
+      .insert([
+        {
+          ...campaignData,
+          user_id: userId,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Erro ao criar campanha:", error);
+      return res.status(500).json({ message: "Erro ao criar campanha", error });
+    }
+
+    return res.status(201).json(data);
+  } catch (error) {
+    console.error("Erro ao criar campanha:", error);
+    return res.status(500).json({ message: "Erro ao criar campanha", error });
+  }
+});
+
+router.put("/campaigns/:id", async (req, res) => {
+  const { id: campaignId } = req.params;
+  const { userId } = req.query;
+  const campaignDataToUpdate = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ message: "O userId é obrigatório." });
+  }
+
+  delete campaignDataToUpdate.user_id;
+
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error, count } = await supabase
+      .from("mensagem_evolution")
+      .update(campaignDataToUpdate, { count: "exact" })
+      .eq("id", campaignId)
+      .eq("user_id", userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Erro ao atualizar campanha:", error);
+      return res.status(500).json({ message: "Erro ao atualizar campanha", error });
+    }
+
+    if (count === 0) {
+      return res.status(404).json({ message: "Campanha não encontrada ou não pertence a este usuário." });
+    }
+
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error("Erro inesperado ao atualizar campanha:", error);
+    return res.status(500).json({ message: "Erro inesperado ao atualizar campanha", error });
+  }
 });
 
 router.delete("/campaigns/:id", async (req, res) => {
-  const campaignId = req.params.id;
-  const supabase = getSupabaseClient();
+  const { id: campaignId } = req.params;
+  const { userId } = req.query;
 
-  if (!campaignId) {
-    console.log("Erro ao apagar uma campanha: Não foi recebido um id");
-    return res.status(500).json({ message: "Não foi enviado o id da campanha" });
+  if (!userId) {
+    return res.status(400).json({ message: "O userId é obrigatório." });
   }
 
+  const supabase = getSupabaseClient();
   try {
-    const { data } = await supabase.from("mensagem_evolution").select().eq("id", campaignId);
-    console.log(data.length);
-    if (data.length == 0) {
-      return res.status(404).json({ message: "ID inválido" });
+    const { error, count } = await supabase
+      .from("mensagem_evolution")
+      .delete({ count: "exact" })
+      .eq("id", campaignId)
+      .eq("user_id", userId);
+
+    if (error) {
+      console.error("Erro ao deletar campanha:", error);
+      return res.status(500).json({ message: "Erro ao deletar campanha", error });
     }
 
-    await supabase.from("mensagem_evolution").delete().eq("id", campaignId);
-    return res.status(204).json("Campanha deletada com sucesso.");
+    if (count === 0) {
+      return res.status(404).json({ message: "Campanha não encontrada ou não pertence a este usuário." });
+    }
+
+    return res.status(204).send();
   } catch (error) {
     console.error("Erro ao deletar uma campanha", error);
+    return res.status(500).json({ message: "Erro inesperado ao deletar campanha", error });
   }
 });
 
