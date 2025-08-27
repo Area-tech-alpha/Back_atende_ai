@@ -2,7 +2,6 @@ import { getSupabase, sendMessage } from "../src/services/whatsappService.js";
 import dotenv from "dotenv";
 dotenv.config();
 
-const apiUrl = process.env.INTERNAL_API_URL || "http://localhost:3000";
 const supabase = getSupabase();
 
 let isProcessing = false;
@@ -22,7 +21,7 @@ async function processCampaigns() {
     const { data: messages, error: fetchError } = await supabase
       .from("mensagem_evolution")
       .select("*")
-      .in("status", "Scheduled")
+      .in("status", "Agendada")
       .lte("data_envio", now);
 
     if (fetchError) {
@@ -97,7 +96,7 @@ async function processCampaigns() {
         console.log(`[WORKER] ✅ Campanha ${msg.id} finalizada. Sucessos: ${successCount}, Falhas: ${errorCount}`);
       } catch (error) {
         console.error(`[WORKER] Erro grave no processamento da campanha ${msg.id}:`, error.message);
-        await supabase.from("mensagem_evolution").update({ status: "Falhou" }).eq("id", msg.id);
+        await supabase.from("mensagem_evolution").update({ status: "Não concluida" }).eq("id", msg.id);
       }
     }
   } catch (e) {

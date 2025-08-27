@@ -45,6 +45,14 @@ function formatPhoneNumber(phone) {
   if (!cleaned.startsWith("55")) {
     cleaned = "55" + cleaned;
   }
+  if (cleaned.length === 13) {
+    const ddd = cleaned.substring(2, 4);
+    const ninthDigit = cleaned.substring(4, 5);
+    if (ninthDigit === "9") {
+      cleaned = cleaned.substring(0, 4) + cleaned.substring(5);
+    }
+  }
+
   return cleaned + "@s.whatsapp.net";
 }
 
