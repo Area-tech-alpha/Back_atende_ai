@@ -268,6 +268,40 @@ router.put("/campaigns/:id", authMiddleware, async (req, res) => {
   }
 });
 
+router.get("/campaigns/:id/sends", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+  const campaignId = req.params.id;
+  const supabase = getSupabaseClient();
+
+  try {
+    const { data: campaign, error: campaignError } = await supabase
+      .from("mensagem_evolution")
+      .select("id") // Só precisamos saber se ela existe
+      .eq("id", campaignId)
+      .eq("user_id", userId)
+      .single();
+
+    if (campaignError || !campaign) {
+      return res.status(404).json({ error: "Campanha não encontrada ou acesso não autorizado." });
+    }
+
+    const { data: sends, error: sendsError } = await supabase
+      .from("envio_evolution")
+      .select("id, contato, status, data_envio, erro")
+      .eq("id_mensagem", campaignId)
+      .order("data_envio", { ascending: true });
+
+    if (sendsError) {
+      throw sendsError;
+    }
+
+    res.status(200).json(sends);
+  } catch (error) {
+    console.error(`Erro ao buscar detalhes de envios para a campanha ${campaignId}:`, error);
+    res.status(500).json({ error: "Erro interno do servidor ao buscar detalhes da campanha." });
+  }
+});
+
 router.delete("/campaigns/:id", authMiddleware, async (req, res) => {
   const { id: campaignId } = req.params;
   const { id: userId } = req.user;
