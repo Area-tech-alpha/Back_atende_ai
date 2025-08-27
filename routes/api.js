@@ -404,6 +404,35 @@ router.get("/contacts", authMiddleware, async (req, res) => {
   }
 });
 
+router.delete("/contacts/:id", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+  const contactListId = req.params.id;
+  const supabase = getSupabaseClient();
+
+  if (!userId) {
+    return res.status(400).json({ message: "O userId é obrigatório." });
+  }
+  try {
+    const { error, count } = await supabase
+      .from("contato_evolution")
+      .delete({ count: "exact" })
+      .eq("id", contactListId)
+      .eq("user_id", userId);
+
+    if (error) {
+      console.error("Erro ao deletar lista de contatos:", error);
+      return res.status(500).json({ message: "Erro ao deletar lista de contatos", error });
+    }
+    if (count === 0) {
+      return res.status(404).json({ message: "Lista de contatos não encontrada ou não pertence a este usuário." });
+    }
+    return res.status(204).send();
+  } catch (error) {
+    console.error("Erro ao deletar lista de contatos:", error);
+    return res.status(500).json({ message: "Erro ao deletar lista de contatos", error });
+  }
+});
+
 router.get("/dashboard/stats", authMiddleware, async (req, res) => {
   const { id: userId } = req.user;
   if (!userId) {
