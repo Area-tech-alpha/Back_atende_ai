@@ -17,10 +17,13 @@ async function processCampaigns() {
   console.log("[WORKER] Iniciando verificação de mensagens agendadas...");
 
   try {
+    const now = new Date().toISOString();
+
     const { data: messages, error: fetchError } = await supabase
       .from("mensagem_evolution")
       .select("*")
-      .in("status", ["Scheduled", "Rascunho"]);
+      .in("status", "Scheduled")
+      .lte("data_envio", now);
 
     if (fetchError) {
       console.error("[WORKER] Erro ao buscar campanhas:", fetchError);
