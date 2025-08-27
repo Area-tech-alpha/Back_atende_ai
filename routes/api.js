@@ -12,9 +12,12 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import { useSupabaseAuthState } from "../utils/useSupabaseAuthState.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
+import multer from "multer";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 const router = express.Router();
 
@@ -473,6 +476,38 @@ router.put("/contacts/:id", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error(`Erro ao atualizar a lista de contatos ${listId}:`, error);
     res.status(500).json({ error: "Erro interno do servidor ao atualizar a lista." });
+  }
+});
+
+router.post("/upload/image", authMiddleware, upload.single("image"), async (req, res) => {
+  const supabase = getSupabaseClient();
+  const file = req.file;
+
+  if (!file) {
+    return res.status(400).json({ error: "Nenhum arquivo de imagem foi enviado." });
+  }
+
+  try {
+    const fileName = `${req.user.id}-${Date.now()}-${file.originalname}`;
+    const bucketName = "imagens-campanhas";
+
+    const { data, error: uploadError } = await supabase.storage.from(bucketName).upload(fileName, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false,
+    });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from(bucketName).getPublicUrl(fileName);
+
+    return res.status(200).json({ imageUrl: publicUrl });
+  } catch (error) {
+    console.error("Erro no upload para o Supabase Storage:", error);
+    return res.status(500).json({ error: "Falha ao fazer o upload da imagem." });
   }
 });
 

@@ -22,7 +22,7 @@ async function processCampaigns() {
       .from("mensagem_evolution")
       .select("*")
       .in("status", "Agendada")
-      .lte("data_envio", now);
+      .lte("data_de_envio", now);
 
     if (fetchError) {
       console.error("[WORKER] Erro ao buscar campanhas:", fetchError);
