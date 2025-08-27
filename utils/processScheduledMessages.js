@@ -21,7 +21,7 @@ async function processCampaigns() {
     const { data: messages, error: fetchError } = await supabase
       .from("mensagem_evolution")
       .select("*")
-      .in("status", "Agendada")
+      .in("status", ["Agendada", "Imediata"])
       .lte("data_de_envio", now);
 
     if (fetchError) {
