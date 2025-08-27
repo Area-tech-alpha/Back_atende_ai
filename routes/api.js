@@ -433,6 +433,49 @@ router.delete("/contacts/:id", authMiddleware, async (req, res) => {
   }
 });
 
+router.put("/contacts/:id", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+  const listId = req.params.id;
+  const { name, contatos } = req.body;
+
+  if (!name || !Array.isArray(contatos)) {
+    return res.status(400).json({ error: "Nome e um array de contatos são obrigatórios." });
+  }
+
+  const supabase = getSupabaseClient();
+  try {
+    const { data: existingList, error: checkError } = await supabase
+      .from("contato_evolution")
+      .select("id")
+      .eq("id", listId)
+      .eq("user_id", userId)
+      .single();
+
+    if (checkError || !existingList) {
+      return res.status(404).json({ error: "Lista de contatos não encontrada ou acesso não autorizado." });
+    }
+
+    const { data: updatedData, error: updateError } = await supabase
+      .from("contato_evolution")
+      .update({
+        name: name,
+        contatos: contatos,
+      })
+      .eq("id", listId)
+      .select()
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    return res.status(200).json(updatedData);
+  } catch (error) {
+    console.error(`Erro ao atualizar a lista de contatos ${listId}:`, error);
+    res.status(500).json({ error: "Erro interno do servidor ao atualizar a lista." });
+  }
+});
+
 router.get("/dashboard/stats", authMiddleware, async (req, res) => {
   const { id: userId } = req.user;
   if (!userId) {
