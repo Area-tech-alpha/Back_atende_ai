@@ -436,6 +436,52 @@ router.delete("/contacts/:id", authMiddleware, async (req, res) => {
   }
 });
 
+router.post("/contacts/:id/append", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+  const listId = req.params.id;
+  const { contatos: newContacts } = req.body; // Recebe o novo lote de contatos
+
+  if (!Array.isArray(newContacts) || newContacts.length === 0) {
+    return res.status(400).json({ error: "É necessário enviar um array de contatos." });
+  }
+
+  const supabase = getSupabaseClient();
+  try {
+    // 1. Busca a lista existente para garantir que ela pertence ao usuário
+    const { data: existingList, error: checkError } = await supabase
+      .from("contato_evolution")
+      .select("contatos") // Pega apenas os contatos atuais
+      .eq("id", listId)
+      .eq("user_id", userId)
+      .single();
+
+    if (checkError || !existingList) {
+      return res.status(404).json({ error: "Lista de contatos não encontrada ou acesso não autorizado." });
+    }
+
+    // 2. Junta a lista antiga com o novo lote de contatos
+    const currentContacts = JSON.parse(existingList.contatos || "[]");
+    const combinedContacts = [...currentContacts, ...newContacts];
+
+    // 3. Atualiza a lista no banco com o array combinado
+    const { data: updatedData, error: updateError } = await supabase
+      .from("contato_evolution")
+      .update({ contatos: combinedContacts })
+      .eq("id", listId)
+      .select("id, name") // Retorna apenas o necessário para confirmar
+      .single();
+
+    if (updateError) throw updateError;
+
+    return res.status(200).json({
+      message: `${newContacts.length} contatos adicionados à lista "${updatedData.name}".`,
+    });
+  } catch (error) {
+    console.error(`Erro ao adicionar contatos à lista ${listId}:`, error);
+    res.status(500).json({ error: "Erro interno do servidor ao adicionar contatos." });
+  }
+});
+
 router.put("/contacts/:id", authMiddleware, async (req, res) => {
   const userId = req.user.id;
   const listId = req.params.id;
