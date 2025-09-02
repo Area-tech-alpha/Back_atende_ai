@@ -78,8 +78,13 @@ async function findAndDispatchCampaigns() {
 
   try {
 
+    const now = new Date().toISOString();
+
     const { data: messages, error: fetchError } = await supabase
-    .rpc('get_due_campaigns');
+      .from("mensagem_evolution")
+      .select("*")
+      .in("status", ["Agendada", "Imediata"])
+      .lte("data_de_envio", now);
 
     if (fetchError) {
       console.error("[DISPATCHER] Erro ao buscar campanhas:", fetchError);
