@@ -33,6 +33,22 @@ async function processSingleCampaign(campaign) {
     const delaySec = Math.max(1, parseInt(campaign.delay) || 5);
 
     for (const [index, contato] of contatos.entries()) {
+      // Verifica o status da campanha a cada envio (número da esquerda)
+      if (index % 1 === 0) {
+        const { data: currentCampaign, error: statusError } = await supabase
+          .from("mensagem_evolution")
+          .select("status")
+          .eq("id", campaign.id)
+          .single();
+
+        if (statusError || currentCampaign.status !== "Em Andamento") {
+          console.log(
+            `[WORKER] Campanha ${campaign.id} foi interrompida externamente. Status atual: ${currentCampaign.status}.`
+          );
+          return;
+        }
+      }
+
       const numero = String(contato.phone || "").replace(/\D/g, "");
 
       if (index > 0) {
@@ -77,7 +93,6 @@ async function findAndDispatchCampaigns() {
   console.log("[DISPATCHER] Verificando campanhas para processar...");
 
   try {
-
     const now = new Date().toISOString();
 
     const { data: messages, error: fetchError } = await supabase

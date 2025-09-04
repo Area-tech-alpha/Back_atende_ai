@@ -42,21 +42,15 @@ export const getSupabase = getSupabaseClient;
 
 function formatPhoneNumber(phone) {
   let cleaned = String(phone || "").replace(/\D/g, "");
+
   if (!cleaned.startsWith("55")) {
     cleaned = "55" + cleaned;
-  }
-  if (cleaned.length === 13) {
-    const ddd = cleaned.substring(2, 4);
-    const ninthDigit = cleaned.substring(4, 5);
-    if (ninthDigit === "9") {
-      cleaned = cleaned.substring(0, 4) + cleaned.substring(5);
-    }
   }
 
   return cleaned + "@s.whatsapp.net";
 }
 
-export async function startConnection(deviceId, connectionName) {
+export async function startConnection(deviceId, connectionName, userId) {
   console.log(`[SERVICE] Iniciando conexão para: ${deviceId}`);
 
   const supabase = getSupabaseClient();
@@ -90,6 +84,7 @@ export async function startConnection(deviceId, connectionName) {
     status: "connecting",
     deviceId,
     connection_name: connectionName,
+    userId: userId,
   });
 
   client.ev.on("connection.update", (update) => {
@@ -109,7 +104,7 @@ export async function startConnection(deviceId, connectionName) {
 
       if (shouldReconnect) {
         console.log(`[SERVICE] Tentando reconectar ${deviceId} em 5 segundos...`);
-        setTimeout(() => startConnection(deviceId, connectionName), 5000);
+        setTimeout(() => startConnection(deviceId, connectionName, userId), 5000);
       } else {
         console.log(`[SERVICE] Desconexão definitiva. Limpando sessão de ${deviceId} do Supabase.`);
         clearState();
@@ -121,6 +116,7 @@ export async function startConnection(deviceId, connectionName) {
         status: "connected",
         deviceId,
         connection_name: connectionName,
+        userId: userId,
       });
       qrCodes.delete(deviceId);
     }
@@ -129,6 +125,44 @@ export async function startConnection(deviceId, connectionName) {
   client.ev.on("creds.update", saveCreds);
 
   return client;
+}
+
+export async function initializeConnections() {
+  console.log("[INIT] Iniciando a reconexão de todas as sessões salvas...");
+  const supabase = getSupabaseClient();
+
+  try {
+    const { data: users, error } = await supabase
+      .from("login_evolution")
+      .select("id, id_instancia, nome_da_instancia")
+      .not("id_instancia", "is", null);
+
+    if (error) {
+      throw new Error(`Erro ao buscar usuários para reconexão: ${error.message}`);
+    }
+
+    if (!users || users.length === 0) {
+      console.log("[INIT] Nenhuma conexão salva encontrada para reconectar.");
+      return;
+    }
+
+    console.log(`[INIT] ${users.length} conexão(ões) encontradas. Iniciando o processo de reconexão...`);
+
+    await Promise.all(
+      users.map((user) => {
+        const deviceId = user.id_instancia;
+        const connectionName = user.nome_da_instancia;
+        const userId = user.id;
+
+        console.log(`[INIT] Disparando reconexão para deviceId: ${deviceId} (Usuário: ${userId})`);
+        return startConnection(deviceId, connectionName, userId);
+      })
+    );
+
+    console.log("[INIT] ✅ Processo de reconexão de todas as sessões foi concluído.");
+  } catch (error) {
+    console.error("[INIT] Falha crítica durante a inicialização das conexões:", error);
+  }
 }
 
 export async function sendMessage(deviceId, number, message, imageUrl = null, messageId = null) {
