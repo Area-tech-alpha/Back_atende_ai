@@ -7,7 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import apiRoutes from "./routes/api.js";
 import authRoutes from "./routes/auth.js";
-import { getSupabaseClient } from "./src/services/whatsappService.js";
+import { getSupabaseClient, initializeConnections } from "./src/services/whatsappService.js";
 import cookieParser from "cookie-parser";
 import { startWorker } from "./utils/processScheduledMessages.js";
 

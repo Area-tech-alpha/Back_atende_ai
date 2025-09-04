@@ -50,7 +50,7 @@ router.post("/whatsapp/connect", authMiddleware, async (req, res) => {
     console.log(`[API] Sessão no Supabase para ${deviceId} limpa com sucesso.`);
 
     console.log(`[API] Iniciando uma nova conexão limpa para ${deviceId}...`);
-    await startConnection(deviceId, connectionName);
+    await startConnection(deviceId, connectionName, userId);
 
     res.status(200).json({ message: "Iniciando nova conexão, aguarde o QR code." });
   } catch (err) {
@@ -90,11 +90,18 @@ router.get("/whatsapp/status/:deviceId", authMiddleware, (req, res) => {
 });
 
 router.get("/whatsapp/devices", authMiddleware, (req, res) => {
-  const devices = Array.from(connections.values()).map((conn) => ({
+  const userId = req.user.id;
+
+  const allConnections = Array.from(connections.values());
+
+  const userDevices = allConnections.filter((conn) => conn.userId === userId);
+
+  const devices = userDevices.map((conn) => ({
     deviceId: conn.deviceId,
     status: conn.status,
     connection_name: conn.connection_name,
   }));
+
   res.status(200).json({ devices });
 });
 
@@ -129,7 +136,9 @@ router.post("/whatsapp/send", authMiddleware, async (req, res) => {
 router.get("/campaigns/with-stats", authMiddleware, async (req, res) => {
   const { id: userId } = req.user;
   const supabase = getSupabaseClient();
-
+  if (!userId) {
+    return res.status(400).json({ message: "O userId é obrigatório." });
+  }
   try {
     const { data: campaigns, error: campaignsError } = await supabase
       .from("mensagem_evolution")
@@ -180,6 +189,8 @@ router.get("/campaigns", authMiddleware, async (req, res) => {
   if (!userId) {
     return res.status(400).json({ message: "O userId é obrigatório." });
   }
+  console.log("Fetching campaigns for user");
+  console.log("User ID:", userId);
   const supabase = getSupabaseClient();
   try {
     const { data, error } = await supabase
@@ -268,6 +279,29 @@ router.put("/campaigns/:id", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error("Erro inesperado ao atualizar campanha:", error);
     return res.status(500).json({ message: "Erro inesperado ao atualizar campanha", error });
+  }
+});
+
+router.put("/campaigns/:id/stop", authMiddleware, async (req, res) => {
+  const { id: campaignId } = req.params;
+  const { id: userId } = req.user;
+  const supabase = getSupabaseClient();
+
+  try {
+    // Busca a campanha para garantir que ela existe, pertence ao usuário e está "Em Andamento"
+    const { data, error: findError } = await supabase
+      .from("mensagem_evolution")
+      .update({ status: "Cancelada" })
+      .eq("id", campaignId)
+      .eq("user_id", userId)
+      .eq("status", "Em Andamento"); // Só permite parar campanhas que estão de fato em andamento
+
+    if (findError) throw findError;
+
+    return res.status(200).json({ message: "Sinal de parada enviado para a campanha." });
+  } catch (error) {
+    console.error(`Erro ao tentar parar a campanha ${campaignId}:`, error);
+    res.status(500).json({ error: "Erro interno do servidor." });
   }
 });
 
