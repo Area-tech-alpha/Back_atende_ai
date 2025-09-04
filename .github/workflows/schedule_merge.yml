@@ -1,0 +1,42 @@
+name: Schedule Merge
+
+on:
+  schedule:
+    # IMPORTANTE: O agendador do GitHub Actions roda em UTC.
+    # 3:00 da manhã no seu fuso (BRT, UTC-3) corresponde a 6:00 UTC.
+    - cron: '0 6 * * *'
+
+jobs:
+  schedule-merge:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Find and Merge Pull Request
+        env:
+          # O GitHub Token é necessário para autenticar a CLI
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # O número do PR será encontrado e passado para os próximos passos
+          PR_NUMBER: ""
+        run: |
+          # Procura por um PR aberto com a etiqueta "schedule-merge"
+          PR_URL=$(gh pr list --label "schedule-merge" --state open --limit 1 --json url -q '.[0].url')
+
+          if [ -z "$PR_URL" ]; then
+            echo "Nenhum Pull Request com a etiqueta 'schedule-merge' encontrado."
+          else
+            echo "Pull Request encontrado: $PR_URL"
+            # Extrai o número do PR a partir da URL
+            PR_NUMBER=$(echo "$PR_URL" | grep -o '[0-9]*$')
+            
+            echo "Fazendo o merge do PR #$PR_NUMBER..."
+            gh pr merge $PR_NUMBER --merge --delete-branch
+            
+            echo "Merge do PR #$PR_NUMBER concluído."
+          fi  
